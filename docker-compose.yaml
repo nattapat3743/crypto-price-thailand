@@ -1,0 +1,265 @@
+# =========================================================================
+# docker-compose.yaml — Bitkub Pump Radar (Big Data project)
+# Apache Airflow (CeleryExecutor) + Postgres (target DB) + SeaweedFS (Data Lake) + FastAPI Dashboard
+# โครงเดียวกับโปรเจกต์ airflow-docker-flight-traffic แต่ใช้ชื่อ container และ port คนละชุด
+# (ไม่ชนกัน แต่เครื่อง RAM 4 GB ควรเปิดทีละโปรเจกต์)
+#
+#   Airflow        http://localhost:8081   (airflow / airflow)
+#   Dashboard      http://localhost:8002
+#   Lake Browser   http://localhost:9021/buckets/bitkub-lake/
+#   S3 API         localhost:9020
+#   Postgres       localhost:5435          (etluser / etlpass / etl_db)
+# =========================================================================
+name: airflow-docker-bitkub-pump
+
+x-airflow-common:
+  &airflow-common
+  image: ${AIRFLOW_IMAGE_NAME:-apache/airflow:2.10.4}
+  dns:
+    - 8.8.8.8
+    - 1.1.1.1
+  environment:
+    &airflow-common-env
+    AIRFLOW__CORE__EXECUTOR: CeleryExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__RESULT_BACKEND: db+postgresql://airflow:airflow@postgres/airflow
+    AIRFLOW__CELERY__BROKER_URL: redis://:@redis:6379/0
+    AIRFLOW__CORE__FERNET_KEY: ''
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    # รันงานหนัก (DuckDB) พร้อมกันไม่เกิน 2 task — กัน RAM เต็มบน Docker Desktop
+    AIRFLOW__CELERY__WORKER_CONCURRENCY: 2
+    _PIP_ADDITIONAL_REQUIREMENTS: ${_PIP_ADDITIONAL_REQUIREMENTS:-pandas psycopg2-binary requests apache-airflow-providers-postgres scikit-learn joblib duckdb==1.1.3 pyarrow}
+    # Airflow Connection "postgres_target" สร้างจาก env นี้อัตโนมัติ (ไม่ต้องไปสร้างใน UI)
+    AIRFLOW_CONN_POSTGRES_TARGET: postgresql://etluser:etlpass@postgres_target:5432/etl_db
+    # ----- Bitkub pipeline (ดู dags/bitkub_lake.py) -----
+    BITKUB_TOP_N: ${BITKUB_TOP_N:-50}                        # เก็บกี่เหรียญ (เรียงตาม volume 24 ชม.)
+    BITKUB_BACKFILL_DAYS: ${BITKUB_BACKFILL_DAYS:-365}       # ดึงย้อนหลังกี่วันในการรันครั้งแรก
+    S3_ENDPOINT: seaweedfs:8333                              # Data Lake (S3 API ของ SeaweedFS)
+    LAKE_BUCKET: bitkub-lake
+    DUCKDB_MEMORY_LIMIT: ${DUCKDB_MEMORY_LIMIT:-1GB}        # RAM สูงสุดของ DuckDB ต่อ task (เกินแล้ว spill ลงดิสก์)
+    MODEL_ROOT: /opt/airflow/models
+  volumes:
+    - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    - ${AIRFLOW_PROJ_DIR:-.}/logs:/opt/airflow/logs
+    - ${AIRFLOW_PROJ_DIR:-.}/config:/opt/airflow/config
+    - ${AIRFLOW_PROJ_DIR:-.}/plugins:/opt/airflow/plugins
+    - ${AIRFLOW_PROJ_DIR:-.}/models:/opt/airflow/models
+  user: "${AIRFLOW_UID:-50000}:0"
+  depends_on:
+    &airflow-common-depends-on
+    redis:
+      condition: service_healthy
+    postgres:
+      condition: service_healthy
+
+services:
+
+  # ---------------------------------------------------------------------
+  # Postgres สำหรับ metadata ของ Airflow เอง (ห้ามใช้ปนกับ DB ปลายทาง)
+  # ---------------------------------------------------------------------
+  postgres:
+    image: postgres:16
+    container_name: bk_airflow_metadata_db
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: airflow
+    volumes:
+      - postgres-db-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "airflow"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.2-bookworm
+    container_name: bk_airflow_redis
+    expose:
+      - 6379
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 30s
+      retries: 50
+      start_period: 30s
+    restart: unless-stopped
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: bk_airflow_webserver
+    command: webserver
+    ports:
+      - "8081:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: bk_airflow_scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8974/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-worker:
+    <<: *airflow-common
+    container_name: bk_airflow_worker
+    command: celery worker
+    healthcheck:
+      test:
+        - "CMD-SHELL"
+        - 'celery --app airflow.providers.celery.executors.celery_executor.app inspect ping -d "celery@$${HOSTNAME}"'
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    environment:
+      <<: *airflow-common-env
+      DUMB_INIT_SETSID: "0"
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-triggerer:
+    <<: *airflow-common
+    container_name: bk_airflow_triggerer
+    command: triggerer
+    healthcheck:
+      test: ["CMD-SHELL", 'airflow jobs check --job-type TriggererJob --hostname "$${HOSTNAME}"']
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    restart: unless-stopped
+    depends_on:
+      <<: *airflow-common-depends-on
+      airflow-init:
+        condition: service_completed_successfully
+
+  airflow-init:
+    <<: *airflow-common
+    container_name: bk_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        mkdir -p /sources/logs /sources/dags /sources/plugins /sources/models
+        chown -R "${AIRFLOW_UID:-50000}:0" /sources/{logs,dags,plugins,models}
+        exec /entrypoint airflow version
+    environment:
+      <<: *airflow-common-env
+      _AIRFLOW_DB_MIGRATE: 'true'
+      _AIRFLOW_WWW_USER_CREATE: 'true'
+      _AIRFLOW_WWW_USER_USERNAME: ${_AIRFLOW_WWW_USER_USERNAME:-airflow}
+      _AIRFLOW_WWW_USER_PASSWORD: ${_AIRFLOW_WWW_USER_PASSWORD:-airflow}
+      _PIP_ADDITIONAL_REQUIREMENTS: ''
+    user: "0:0"
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}:/sources
+
+  # ---------------------------------------------------------------------
+  # Postgres ปลายทาง: ตาราง gold / ML ที่ Dashboard อ่าน
+  # ---------------------------------------------------------------------
+  postgres_target:
+    image: postgres:16
+    container_name: bk_postgres_target
+    environment:
+      POSTGRES_USER: etluser
+      POSTGRES_PASSWORD: etlpass
+      POSTGRES_DB: etl_db
+    ports:
+      - "5435:5432"
+    volumes:
+      - postgres-target-volume:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "etluser", "-d", "etl_db"]
+      interval: 10s
+      retries: 5
+      start_period: 5s
+    restart: unless-stopped
+
+  # ---------------------------------------------------------------------
+  # SeaweedFS = Data Lake (object storage ที่ใช้ S3 API) เก็บ Parquet ทุกชั้นใน bucket "bitkub-lake"
+  # volumeSizeLimitMB=64: SeaweedFS จองดิสก์เต็มขนาด volume ตั้งแต่สร้าง (ทีละ 7 volume)
+  #   ตั้งเล็กไว้จะจองแค่ ~0.5 GB แล้วค่อยสร้างเพิ่มเมื่อข้อมูลโต (volume.max=0 = ไม่จำกัด)
+  # ---------------------------------------------------------------------
+  seaweedfs:
+    image: chrislusf/seaweedfs:3.80
+    container_name: bk_seaweedfs
+    command: server -dir=/data -s3 -filer -master.volumeSizeLimitMB=64 -volume.max=0
+    ports:
+      - "9020:8333"   # S3 API
+      - "9021:8888"   # Filer web UI (Lake Browser)
+    volumes:
+      - seaweedfs-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  seaweedfs-init:
+    image: chrislusf/seaweedfs:3.80
+    container_name: bk_seaweedfs_init
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: /bin/sh
+    command:
+      - -c
+      - |
+        echo "s3.bucket.create -name bitkub-lake" | weed shell -master=seaweedfs:9333 -filer=seaweedfs:8888
+        echo "bucket bitkub-lake พร้อมใช้งาน"
+
+  # ---------------------------------------------------------------------
+  # Dashboard + API (FastAPI) — อ่านตาราง gold จาก postgres_target
+  # mount โค้ดเข้าไป + uvicorn --reload: แก้ไฟล์แล้วกด F5 ได้เลย
+  # ---------------------------------------------------------------------
+  model_api:
+    build: ./model_service
+    container_name: bk_model_api
+    environment:
+      PG_HOST: postgres_target
+      PG_PORT: "5432"
+      PG_DB: etl_db
+      PG_USER: etluser
+      PG_PASSWORD: etlpass
+    depends_on:
+      postgres_target:
+        condition: service_healthy
+    ports:
+      - "8002:8000"
+    volumes:
+      - ${AIRFLOW_PROJ_DIR:-.}/model_service:/app
+    restart: unless-stopped
+
+volumes:
+  postgres-db-volume:
+  postgres-target-volume:
+  seaweedfs-data:

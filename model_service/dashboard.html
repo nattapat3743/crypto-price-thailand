@@ -1,0 +1,1810 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Crypto Price — ราคาคริปโตในตลาดไทย</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;500;600;700;800&family=Noto+Sans+Thai:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* ---------- Design tokens (DESIGN-spotify.md) ---------- */
+  :root {
+    color-scheme: dark;
+    --green: #1ed760; --green-hover: #3be477; --green-border: #1db954;
+    --bg: #121212; --surface: #181818; --surface-2: #1f1f1f; --card-hover: #252525; --card-alt: #272727;
+    --text: #ffffff; --text-soft: #cbcbcb; --text-muted: #b3b3b3; --text-dim: #a7a7a7;
+    --border: #4d4d4d; --border-light: #7c7c7c; --separator: #2a2a2a;
+    --negative: #f3727f; --warning: #ffa42b; --info: #539df5;
+    --shadow-heavy: rgba(0,0,0,.5) 0 8px 24px; --shadow-med: rgba(0,0,0,.3) 0 8px 8px;
+    --inset: rgb(18,18,18) 0 1px 0, rgb(124,124,124) 0 0 0 1px inset;
+    /* data colors — dark-mode steps of the validated categorical palette */
+    --s-blue: #3987e5; --s-orange: #d95926; --up: #199e70; --down: #e66767;
+    --font: 'Figtree', 'Noto Sans Thai', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+    --sidebar: 248px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+  html, body { margin: 0; background: var(--bg); color: var(--text-muted); -webkit-font-smoothing: antialiased; }
+  body { font-family: var(--font); font-size: 14px; line-height: 1.5; }
+  a { color: var(--text); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  button, select, input { font: inherit; color: inherit; }
+  button { cursor: pointer; }
+  .num { font-variant-numeric: tabular-nums; }
+  h1, h2, h3 { font-family: var(--font); color: var(--text); font-weight: 700; margin: 0; text-wrap: balance; }
+  code { font-family: var(--font-mono); font-size: 11.5px; background: var(--surface-2); padding: 2px 6px; border-radius: 4px; color: var(--text-soft); }
+
+  /* ---------- Sidebar (Spotify: fixed dark nav) ---------- */
+  .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar); background: #000; padding: 20px 12px; display: flex; flex-direction: column; gap: 8px; z-index: 2000; }
+  .brand { display: flex; align-items: center; gap: 10px; padding: 6px 12px 18px; color: var(--text); }
+  .brand:hover { text-decoration: none; }
+  .brand-logo { width: 34px; height: 34px; border-radius: 50%; background: var(--green); display: flex; align-items: center; justify-content: center; flex: none; }
+  .brand-word { font-size: 21px; font-weight: 800; letter-spacing: -.4px; white-space: nowrap; }
+  .side-group { background: var(--surface); border-radius: 8px; padding: 8px; }
+  .side-title { font-size: 12px; font-weight: 700; color: var(--text-muted); padding: 8px 12px 4px; text-transform: uppercase; letter-spacing: 1.4px; }
+  .side-link { display: flex; align-items: center; gap: 14px; padding: 10px 12px; border-radius: 6px; color: var(--text-muted); font-size: 14px; font-weight: 700; transition: color .15s, background .15s; }
+  .side-link:hover { color: var(--text); text-decoration: none; background: var(--surface-2); }
+  .side-link.active { color: var(--text); background: var(--surface-2); }
+  .side-link.active svg { color: var(--green); }
+  .side-link svg { flex: none; }
+  .side-foot { margin-top: auto; font-size: 11.5px; color: var(--text-dim); padding: 12px; line-height: 1.5; }
+  .main { margin-left: var(--sidebar); min-width: 0; }
+
+  /* ---------- Sections ---------- */
+  .band { padding: 40px 32px; }
+  .band-soft, .band-dark { background: transparent; }
+  .inner { max-width: 1200px; margin: 0 auto; }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; background: rgba(255,255,255,.07); color: var(--text-soft);
+    border-radius: 9999px; padding: 5px 14px; font-size: 12.5px; font-weight: 600; }
+  .eyebrow .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--text-dim); }
+  .eyebrow .dot.ok { background: var(--green); box-shadow: 0 0 0 3px rgba(30,215,96,.2); }
+  .eyebrow .dot.stale { background: var(--warning); }
+  .caption-up { font-size: 12px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; color: var(--text-muted); }
+  .muted { color: var(--text-muted); }
+  .section-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin-bottom: 18px; flex-wrap: wrap; }
+  .section-head h2 { font-size: 24px; letter-spacing: -.3px; }
+  .section-head p { margin: 6px 0 0; color: var(--text-muted); font-size: 14px; max-width: 700px; }
+
+  /* ---------- Hero (playlist-header feel) ---------- */
+  .hero-band { background: linear-gradient(180deg, #2a2a2a 0%, #1a1a1a 55%, var(--bg) 100%); padding-top: 48px; }
+  .hero { display: grid; grid-template-columns: 1.1fr .9fr; gap: 40px; align-items: end; }
+  @media (max-width: 1100px) { .hero { grid-template-columns: 1fr; gap: 28px; } }
+  .hero h1 { font-size: clamp(2.3rem, 5vw, 4rem); font-weight: 800; line-height: 1.02; letter-spacing: -1.5px; margin-top: 18px; }
+  .hero-sub { color: var(--text-muted); font-size: 15px; margin: 16px 0 0; max-width: 560px; }
+  .disclaimer { display: flex; gap: 10px; align-items: flex-start; margin-top: 18px; padding: 12px 14px; border-radius: 8px;
+    background: rgba(255,164,43,.1); color: #ffc47a; font-size: 13px; max-width: 580px; }
+  .disclaimer svg { flex: none; margin-top: 2px; color: var(--warning); }
+  .hero-actions { display: flex; gap: 12px; margin-top: 22px; flex-wrap: wrap; align-items: center; }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; height: 48px; padding: 0 32px; border-radius: 500px;
+    font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1.4px; border: 0; transition: transform .1s, background .15s, border-color .15s; }
+  .btn:hover { text-decoration: none; transform: scale(1.04); }
+  .btn:active { transform: scale(.98); }
+  .btn-ink { background: var(--green); color: #000; }
+  .btn-ink:hover { background: var(--green-hover); }
+  .btn-line { background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border-light); }
+  .btn-line:hover { box-shadow: inset 0 0 0 1px var(--text); }
+  .counter-card { background: rgba(0,0,0,.35); border-radius: 8px; padding: 28px; box-shadow: var(--shadow-heavy); }
+  .counter-card .big { font-size: clamp(2.6rem, 5.5vw, 3.8rem); font-weight: 800; color: var(--text); letter-spacing: -1.5px; line-height: 1; margin-top: 10px; }
+  .counter-card .unit { font-size: 13px; color: var(--text-muted); margin-top: 8px; }
+  .mini-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--separator); }
+  .mini-stats .v { font-size: 20px; font-weight: 700; color: var(--text); }
+  .mini-stats .k { font-size: 12px; color: var(--text-muted); }
+
+  /* ---------- Pipeline ---------- */
+  .pipeline { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 1200px) { .pipeline { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .pipeline { grid-template-columns: 1fr; } }
+  .stage { position: relative; background: var(--surface); border-radius: 8px; padding: 18px 16px; transition: background .2s; }
+  .stage:hover { background: var(--card-hover); }
+  .stage-arrow { display: none; }
+  .stage .tier { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase;
+    padding: 3px 10px; border-radius: 9999px; background: var(--surface-2); color: var(--text-soft); }
+  .stage .tier.bronze { background: rgba(205,127,50,.18); color: #e2a466; }
+  .stage .tier.silver { background: rgba(192,200,210,.14); color: #d2d8de; }
+  .stage .tier.gold { background: rgba(255,196,50,.16); color: #ffcf5c; }
+  .stage h3 { font-size: 16px; margin-top: 12px; }
+  .stage .desc { font-size: 12.5px; color: var(--text-muted); margin-top: 4px; min-height: 38px; }
+  .stage .metric { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 12px; }
+  .stage .metric-k { font-size: 12px; color: var(--text-muted); }
+
+  /* ---------- Filter bar (chips) ---------- */
+  .filter-bar { position: sticky; top: 0; z-index: 1500; background: rgba(18,18,18,.94); backdrop-filter: blur(12px); box-shadow: 0 1px 0 var(--separator); }
+  .filter-inner { max-width: 1264px; margin: 0 auto; padding: 12px 32px; display: flex; align-items: center; gap: 18px; flex-wrap: wrap; }
+  .segmented { display: inline-flex; gap: 8px; flex-wrap: wrap; }
+  .segmented button { border: 0; background: rgba(255,255,255,.07); color: var(--text); padding: 6px 14px; border-radius: 9999px; font-size: 13px; font-weight: 600; transition: background .15s; }
+  .segmented button:hover { background: rgba(255,255,255,.14); }
+  .segmented button[aria-pressed="true"] { background: var(--green); color: #000; }
+  .slider { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); font-weight: 600; }
+  .slider input[type=range] { width: 110px; accent-color: var(--green); }
+  .slider output { min-width: 40px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-soft); cursor: pointer; font-weight: 600; }
+  .check input { accent-color: var(--green); width: 16px; height: 16px; }
+  .filter-meta { font-size: 12.5px; color: var(--text-muted); margin-left: auto; display: flex; align-items: center; gap: 10px; }
+  .icon-btn { width: 36px; height: 36px; border-radius: 50%; border: 0; background: var(--surface-2); color: var(--text); display: inline-flex; align-items: center; justify-content: center; transition: transform .1s, background .15s; }
+  .icon-btn:hover { background: var(--card-hover); transform: scale(1.06); }
+  .icon-btn.spin svg { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ---------- Cards / KPIs ---------- */
+  .kpis { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 1200px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  .kpi { background: var(--surface); border-radius: 8px; padding: 18px; transition: background .2s; }
+  .kpi:hover { background: var(--card-hover); }
+  .kpi .k { font-size: 12.5px; color: var(--text-muted); font-weight: 600; }
+  .kpi .v { font-size: 28px; font-weight: 800; color: var(--text); letter-spacing: -.5px; margin-top: 6px; line-height: 1.15; }
+  .kpi .s { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+  .grid-explorer { display: grid; grid-template-columns: 340px 1fr; gap: 12px; margin-top: 12px; }
+  @media (max-width: 1100px) { .grid-2, .grid-explorer { grid-template-columns: 1fr; } }
+  .card { background: var(--surface); border-radius: 8px; padding: 20px; min-width: 0; }
+  .card-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }
+  .card-head h3 { font-size: 18px; font-weight: 700; }
+  .card-head .sub { font-size: 12.5px; color: var(--text-muted); margin-top: 3px; }
+  .full { margin-top: 12px; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-soft); }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .key-line { width: 18px; height: 0; border-top: 2px solid; display: inline-block; }
+  .key-line.dash { border-top-style: dashed; }
+  .key-box { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+  .key-box.hollow { background: transparent !important; box-shadow: inset 0 0 0 1.5px var(--up); }
+
+  /* ---------- Charts ---------- */
+  .chart { position: relative; width: 100%; }
+  .chart svg { display: block; width: 100%; overflow: visible; }
+  .axis-label { font-size: 11px; fill: var(--text-dim); font-family: var(--font); }
+  .direct-label { font-size: 12px; font-weight: 700; fill: var(--text); font-family: var(--font); }
+  .marker-label { font-size: 11.5px; font-weight: 700; font-family: var(--font); }
+  .tooltip { position: absolute; pointer-events: none; background: #282828; border-radius: 6px; padding: 8px 12px; font-size: 12.5px;
+    box-shadow: var(--shadow-heavy); opacity: 0; transition: opacity .08s; z-index: 3000; white-space: nowrap; min-width: 150px; color: var(--text-soft); }
+  .tooltip .t-time { font-size: 11.5px; color: var(--text-muted); margin-bottom: 4px; }
+  .tooltip .row { display: flex; align-items: center; gap: 10px; justify-content: space-between; }
+  .tooltip .row .name { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); }
+  .tooltip .row .val { font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .empty { display: flex; align-items: center; justify-content: center; min-height: 140px; color: var(--text-muted); font-size: 13px;
+    background: repeating-linear-gradient(135deg, #1c1c1c 0 10px, #202020 10px 20px); border-radius: 6px; text-align: center; padding: 16px; }
+
+  /* ---------- Event list (track-list feel) ---------- */
+  .ev-list { display: flex; flex-direction: column; gap: 2px; max-height: 560px; overflow: auto; padding-right: 4px; }
+  .ev-list::-webkit-scrollbar, .scroll-x::-webkit-scrollbar { width: 8px; height: 8px; }
+  .ev-list::-webkit-scrollbar-thumb, .scroll-x::-webkit-scrollbar-thumb { background: #4d4d4d; border-radius: 8px; }
+  .ev { text-align: left; width: 100%; border: 0; background: transparent; border-radius: 6px; padding: 10px 12px;
+    display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; transition: background .12s; }
+  .ev:hover { background: var(--surface-2); }
+  .ev[aria-selected="true"] { background: var(--card-alt); box-shadow: inset 3px 0 0 var(--green); }
+  .ev[aria-selected="true"] .sym { color: var(--green); }
+  .ev .sym { font-weight: 700; color: var(--text); font-size: 14px; }
+  .ev .when { font-size: 12px; color: var(--text-muted); }
+  .ev .pump { font-weight: 700; color: var(--text); font-size: 14px; text-align: right; font-variant-numeric: tabular-nums; }
+  .ev .dump { font-size: 12px; text-align: right; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+  .badge { display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; font-weight: 600; padding: 1px 7px; border-radius: 2px; margin-left: 6px; vertical-align: 1px; }
+  .b-dump { background: rgba(243,114,127,.16); color: var(--negative); }
+  .b-market { background: rgba(83,157,245,.16); color: var(--info); }
+  .b-new { background: rgba(255,164,43,.16); color: var(--warning); }
+  .b-illiquid { background: rgba(255,255,255,.08); color: var(--text-muted); }
+  .ev-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--separator); }
+  @media (max-width: 700px) { .ev-stats { grid-template-columns: 1fr 1fr; } }
+  .ev-stats .k { font-size: 12px; color: var(--text-muted); }
+  .ev-stats .v { font-size: 18px; font-weight: 700; color: var(--text); }
+
+  /* ---------- Bars, heatmap ---------- */
+  .hbars { display: flex; flex-direction: column; gap: 10px; }
+  .hbar { display: grid; grid-template-columns: minmax(110px, 250px) 1fr 70px; gap: 12px; align-items: center; font-size: 13px; }
+  .hbar .name { color: var(--text); font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hbar .track { height: 14px; position: relative; }
+  .hbar .fill { height: 100%; border-radius: 0 4px 4px 0; background: var(--s-blue); min-width: 2px; transition: width .6s ease; }
+  .hbar .fill.alt { background: var(--s-orange); }
+  .hbar .val { text-align: right; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .heat { display: grid; grid-template-columns: 34px repeat(24, minmax(0, 1fr)); gap: 3px; font-size: 11px; color: var(--text-dim); }
+  .heat .cell { aspect-ratio: 1; border-radius: 2px; background: #242424; }
+  .heat .cell:hover, .heat .cell:focus { outline: 2px solid var(--text); outline-offset: -1px; }
+  .heat .hl { text-align: center; overflow: visible; white-space: nowrap; }
+  .ramp { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--text-muted); margin-top: 12px; }
+  .ramp .bar { width: 140px; height: 10px; border-radius: 9999px; background: linear-gradient(90deg, #184f95, #256abf, #3987e5, #6da7ec, #b7d3f6); }
+
+  select { height: 34px; border: 0; border-radius: 9999px; padding: 0 14px; background: var(--surface-2); color: var(--text); font-weight: 600; box-shadow: var(--inset); }
+
+  /* ---------- Early warning ---------- */
+  .warn-list { display: flex; flex-direction: column; gap: 4px; }
+  .warn { display: grid; grid-template-columns: 1fr 140px 110px; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 6px; font-size: 13px; transition: background .12s; }
+  .warn:hover { background: var(--surface-2); }
+  @media (max-width: 700px) { .warn { grid-template-columns: 1fr; } }
+  .prob { display: flex; align-items: center; gap: 8px; color: var(--text-soft); }
+  .prob .track { flex: 1; height: 4px; background: #4d4d4d; border-radius: 9999px; overflow: hidden; }
+  .prob .fill { height: 100%; background: var(--text); border-radius: 9999px; }
+  .warn:hover .prob .fill { background: var(--green); }
+  .outcome { font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; text-align: center; }
+  .o-pump { background: rgba(243,114,127,.16); color: var(--negative); }
+  .o-no { background: rgba(255,255,255,.08); color: var(--text-soft); }
+  .o-wait { background: rgba(83,157,245,.16); color: var(--info); }
+
+  /* ---------- Tables ---------- */
+  table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.data th { text-align: left; font-weight: 600; color: var(--text-muted); font-size: 11.5px; letter-spacing: 1px; text-transform: uppercase;
+    padding: 8px 10px; border-bottom: 1px solid var(--separator); }
+  table.data td { padding: 10px; color: var(--text-soft); vertical-align: middle; }
+  table.data tbody tr { transition: background .12s; }
+  table.data tbody tr:hover td { background: var(--surface-2); }
+  table.data td:first-child { color: var(--text); font-weight: 600; }
+  table.data td.r, table.data th.r { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .scroll-x { overflow-x: auto; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 700; padding: 3px 10px; border-radius: 9999px; white-space: nowrap; }
+  .pill.ok { background: rgba(30,215,96,.14); color: var(--green); }
+  .pill.no { background: rgba(255,255,255,.08); color: var(--text-muted); }
+  .up-t { color: #3fcf8e; } .down-t { color: var(--negative); }
+  .callout { margin-top: 14px; padding: 16px 18px; border-radius: 8px; background: var(--surface-2); font-size: 13px; color: var(--text-soft); }
+  .callout b { color: var(--text); }
+
+  .setup { display: none; border-radius: 8px; padding: 22px; background: var(--surface); margin-bottom: 12px; box-shadow: inset 0 0 0 1px var(--border); }
+  .setup.show { display: block; }
+  .setup ol { margin: 10px 0 0; padding-left: 20px; color: var(--text-soft); }
+  .setup li { margin: 6px 0; }
+  .setup a { color: var(--green); }
+
+  footer { color: var(--text-dim); text-align: center; padding: 36px 24px 48px; font-size: 12.5px; border-top: 1px solid var(--separator); margin: 24px 32px 0; }
+  footer code { background: var(--surface-2); }
+  .loading { opacity: .55; transition: opacity .2s; }
+
+  /* ---------- Download / small pill ---------- */
+  .btn-sm { display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px; border-radius: 9999px; border: 0;
+    background: transparent; color: var(--text); box-shadow: inset 0 0 0 1px var(--border-light); font-size: 11.5px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 1px; white-space: nowrap; transition: transform .1s, box-shadow .15s; }
+  .btn-sm:hover { text-decoration: none; box-shadow: inset 0 0 0 1px var(--text); transform: scale(1.04); }
+  .head-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+
+  /* ---------- Correlation ---------- */
+  .corr { display: grid; gap: 2px; font-size: 10.5px; color: var(--text-dim); }
+  .corr .cc { aspect-ratio: 1; border-radius: 2px; display: flex; align-items: center; justify-content: center; font-size: 9.5px; font-weight: 700;
+    font-variant-numeric: tabular-nums; cursor: default; }
+  .corr .cc:hover, .corr .cc:focus { outline: 2px solid var(--text); outline-offset: -1px; }
+  .corr .rl { display: flex; align-items: center; justify-content: flex-end; padding-right: 6px; white-space: nowrap; overflow: hidden; }
+  .corr .cl { writing-mode: vertical-rl; transform: rotate(180deg); text-align: left; white-space: nowrap; height: 44px; display: flex; align-items: center; }
+  .div-ramp { width: 180px; height: 10px; border-radius: 9999px; background: linear-gradient(90deg, #e66767, #383835 50%, #86b6ef); }
+  .hbar .fill.neg { background: #e66767; }
+  .sub-label { font-size: 11.5px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.2px; margin: 14px 0 6px; }
+
+  /* ---------- Model history ---------- */
+  .mh-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  @media (max-width: 700px) { .mh-grid { grid-template-columns: 1fr; } }
+  .mh { background: var(--surface-2); border-radius: 6px; padding: 12px 14px; min-width: 0; }
+  .mh .t { font-size: 13px; font-weight: 700; color: var(--text); display: flex; justify-content: space-between; gap: 8px; }
+  .mh .t span:last-child { color: var(--text-muted); font-weight: 600; font-size: 12px; }
+  .bt-stats { display: flex; gap: 18px; flex-wrap: wrap; font-size: 12.5px; color: var(--text-muted); margin-top: 10px; }
+  .bt-stats b { color: var(--text); font-variant-numeric: tabular-nums; }
+
+  /* ---------- Sources ---------- */
+  .src-link { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text-muted); margin-top: 6px; }
+  .src-link:hover { color: var(--text); }
+  .src-grid { display: grid; grid-template-columns: 1fr 1.6fr; gap: 12px; }
+  @media (max-width: 1100px) { .src-grid { grid-template-columns: 1fr; } }
+  .src-card p { margin: 0 0 12px; color: var(--text-soft); font-size: 13.5px; }
+  .src-links { display: flex; flex-direction: column; gap: 6px; }
+  .src-links a { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border-radius: 6px;
+    background: var(--surface-2); color: var(--text); font-weight: 700; font-size: 13.5px; transition: background .15s; }
+  .src-links a:hover { background: var(--card-hover); text-decoration: none; }
+  .src-links a small { display: block; color: var(--text-muted); font-weight: 400; font-size: 12px; margin-top: 1px; }
+  .src-links a svg { flex: none; color: var(--text-muted); }
+  table.endpoints td { vertical-align: top; }
+  table.endpoints th { white-space: nowrap; }
+  table.endpoints a { color: var(--text); font-family: var(--font-mono); font-size: 12px; white-space: nowrap; text-decoration: underline; text-decoration-color: #4d4d4d; }
+  table.endpoints a:hover { text-decoration-color: var(--text); }
+  .src-note { margin-top: 14px; padding: 12px 14px; border-radius: 6px; background: var(--surface-2); font-size: 12.5px; color: var(--text-muted); }
+  .src-note b { color: var(--text-soft); }
+  .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  @media (max-width: 640px) { .tools { grid-template-columns: 1fr 1fr; } }
+
+  /* ---------- Hero art: ธนบัตรโบกเหมือนธง + เหรียญหมุน (ตกแต่งเท่านั้น) ---------- */
+  .hero-band { position: relative; overflow: hidden; }
+  .hero-band > .inner { position: relative; z-index: 1; }
+  .hero-band .counter-card { background: rgba(10,10,10,.62); backdrop-filter: blur(6px); }
+  .hero-art { position: absolute; inset: 0; pointer-events: none; z-index: 0; }
+  .bill-wrap { position: absolute; width: 200px; height: 96px; animation: bill-drift 9s ease-in-out infinite alternate; }
+  .bill { display: flex; width: 100%; height: 100%; opacity: .78; filter: drop-shadow(0 10px 18px rgba(0,0,0,.55)); }
+  .bill span { flex: 1 1 0; height: 100%; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 96'%3E %3Crect x='1' y='1' width='198' height='94' rx='8' fill='%231d2721' stroke='%233f5a4a' stroke-width='2'/%3E %3Crect x='9' y='9' width='182' height='78' rx='5' fill='none' stroke='%2333483b' stroke-width='1.5' stroke-dasharray='5 3'/%3E %3Cpath d='M9 48 Q50 30 100 48 T191 48' fill='none' stroke='%232c3e33' stroke-width='6'/%3E %3Ccircle cx='100' cy='48' r='25' fill='%23243129' stroke='%235b7d68' stroke-width='2'/%3E %3Ccircle cx='100' cy='48' r='19' fill='none' stroke='%233f5a4a' stroke-width='1'/%3E %3Ctext x='100' y='58' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-weight='700' font-size='28' fill='%239fbfaa'%3E%E0%B8%BF%3C/text%3E %3Ctext x='20' y='30' font-family='Arial,Helvetica,sans-serif' font-weight='700' font-size='15' fill='%236f927c'%3E1000%3C/text%3E %3Ctext x='180' y='80' text-anchor='end' font-family='Arial,Helvetica,sans-serif' font-weight='700' font-size='15' fill='%236f927c'%3E1000%3C/text%3E %3Crect x='150' y='18' width='30' height='20' rx='3' fill='%232c3e33'/%3E %3Crect x='20' y='62' width='40' height='6' rx='3' fill='%232c3e33'/%3E %3C/svg%3E"); background-size: 200px 96px; background-repeat: no-repeat;
+    animation: flag-wave 2.6s ease-in-out infinite; will-change: transform; }
+  @keyframes flag-wave {
+    0%, 100% { transform: translateY(-5px) scaleY(.97); filter: brightness(.82); }
+    50%      { transform: translateY(5px) scaleY(1.03); filter: brightness(1.18); }
+  }
+  @keyframes bill-drift {
+    from { transform: translate(0, 0) rotate(var(--r, -6deg)) scale(var(--s, 1)); }
+    to   { transform: translate(14px, -10px) rotate(calc(var(--r, -6deg) + 4deg)) scale(var(--s, 1)); }
+  }
+  .coin-wrap { position: absolute; width: 56px; height: 56px; animation: coin-float 5s ease-in-out infinite; perspective: 400px; }
+  .coin-face { width: 100%; height: 100%; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E %3Ccircle cx='32' cy='32' r='30' fill='%233a3121' stroke='%238a7440' stroke-width='3'/%3E %3Ccircle cx='32' cy='32' r='23' fill='%23453a26' stroke='%23a88c4d' stroke-width='1.5' stroke-dasharray='2 2.5'/%3E %3Ctext x='32' y='43' text-anchor='middle' font-family='Arial,Helvetica,sans-serif' font-weight='800' font-size='30' fill='%23e0c27a'%3E%E0%B8%BF%3C/text%3E %3C/svg%3E") center / contain no-repeat;
+    animation: coin-spin 3.6s linear infinite; filter: drop-shadow(0 8px 12px rgba(0,0,0,.5)); opacity: .85; }
+  @keyframes coin-spin { from { transform: rotateY(0deg); } to { transform: rotateY(360deg); } }
+  @keyframes coin-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+  @media (max-width: 1100px) { .hero-art .hide-md { display: none; } }
+  @media (max-width: 640px) { .hero-art .hide-sm { display: none; } }
+  @media (prefers-reduced-motion: reduce) {
+    .bill span, .bill-wrap, .coin-wrap, .coin-face { animation: none !important; }
+  }
+
+  /* ---------- Glossary ⓘ ---------- */
+  .info { width: 16px; height: 16px; border-radius: 50%; border: 0; padding: 0; margin-left: 6px; vertical-align: 2px;
+    background: rgba(255,255,255,.12); color: var(--text-soft); font-size: 10.5px; font-weight: 800; font-family: Georgia, serif; font-style: italic;
+    display: inline-flex; align-items: center; justify-content: center; cursor: help; transition: background .15s, color .15s; flex: none; }
+  .info:hover, .info:focus-visible { background: var(--text); color: #000; }
+  .tooltip.wide { white-space: normal; max-width: 290px; line-height: 1.55; }
+  .tooltip .g-term { font-weight: 700; color: var(--text); margin-bottom: 4px; font-size: 13px; }
+
+  /* ---------- Price table ---------- */
+  .search-wrap { position: relative; }
+  .search-wrap svg { position: absolute; left: 13px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+  .search { height: 40px; width: 280px; max-width: 100%; border: 0; border-radius: 500px; background: var(--surface-2); color: var(--text);
+    padding: 0 16px 0 40px; box-shadow: var(--inset); font-size: 14px; }
+  .search:focus { outline: none; box-shadow: inset 0 0 0 2px var(--text); }
+  table.prices td { padding: 8px 10px; }
+  table.prices tbody tr { cursor: pointer; }
+  table.prices tbody tr:focus-visible td { background: var(--surface-2); }
+  table.prices tbody tr.sel td { background: var(--card-alt); }
+  table.prices tbody tr.sel td:first-child { box-shadow: inset 3px 0 0 var(--green); }
+  table.prices th.sortable { cursor: pointer; user-select: none; }
+  table.prices th.sortable:hover { color: var(--text); }
+  table.prices th[aria-sort="ascending"]::after { content: " ▲"; font-size: 9px; }
+  table.prices th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; }
+  .rank { color: var(--text-dim); font-variant-numeric: tabular-nums; width: 28px; }
+  .coin-cell { display: flex; flex-direction: column; line-height: 1.3; }
+  .coin-cell .sym { color: var(--text); font-weight: 700; }
+  .coin-cell .nm { color: var(--text-muted); font-size: 12px; font-weight: 400; }
+  .spark { display: block; }
+  .liq { display: inline-flex; align-items: center; gap: 8px; justify-content: flex-end; }
+  .liq .track { width: 48px; height: 4px; background: #4d4d4d; border-radius: 9999px; overflow: hidden; }
+  .liq .fill { height: 100%; background: var(--text-soft); }
+  .table-foot { font-size: 12px; color: var(--text-muted); margin-top: 14px; display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .pager { display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .pager button { min-width: 36px; height: 36px; padding: 0 12px; border: 0; border-radius: 9999px; background: rgba(255,255,255,.07);
+    color: var(--text); font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; display: inline-flex; align-items: center; justify-content: center;
+    transition: background .15s, transform .1s; }
+  .pager button:hover:not(:disabled):not([aria-current="page"]) { background: rgba(255,255,255,.14); transform: scale(1.04); }
+  .pager button[aria-current="page"] { background: var(--green); color: #000; }
+  .pager button:disabled { opacity: .35; cursor: default; }
+  .pager .gap { color: var(--text-dim); padding: 0 2px; }
+
+  /* ---------- Coin detail ---------- */
+  .coin-card[hidden] { display: none; }
+  .coin-head { display: flex; align-items: flex-end; gap: 20px; flex-wrap: wrap; }
+  .coin-id .caption-up { margin-bottom: 4px; }
+  .coin-id h3 { font-size: 30px; font-weight: 800; letter-spacing: -.5px; }
+  .coin-id .nm { color: var(--text-muted); font-size: 14px; }
+  .coin-price { display: flex; align-items: baseline; gap: 10px; }
+  .coin-price .p { font-size: 30px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
+  .chg { font-weight: 700; font-size: 14px; padding: 3px 10px; border-radius: 9999px; }
+  .chg.up { background: rgba(63,207,142,.14); color: #3fcf8e; }
+  .chg.down { background: rgba(243,114,127,.16); color: var(--negative); }
+  .coin-tools { margin-left: auto; display: flex; gap: 10px; align-items: center; }
+  .coin-stats { display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin: 18px 0 8px; }
+  @media (max-width: 1200px) { .coin-stats { grid-template-columns: repeat(3, 1fr); } }
+  @media (max-width: 640px) { .coin-stats { grid-template-columns: 1fr 1fr; } .coin-tools { margin-left: 0; } .search { width: 100%; } }
+  .coin-stats > div { background: var(--surface-2); border-radius: 6px; padding: 10px 12px; }
+  .coin-stats .k { font-size: 11.5px; color: var(--text-muted); display: flex; align-items: center; }
+  .coin-stats .v { font-size: 16px; font-weight: 700; color: var(--text); margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .coin-link { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+  .coin-link:hover { text-decoration: underline; }
+  .link-btn { background: none; border: 0; padding: 0; color: var(--text-soft); font-size: 12.5px; font-weight: 700; cursor: pointer; text-decoration: underline; }
+  .link-btn:hover { color: var(--text); }
+  :focus-visible { outline: 2px solid var(--text); outline-offset: 2px; }
+
+  /* ---------- Responsive: sidebar -> top bar ---------- */
+  @media (max-width: 900px) {
+    .sidebar { position: sticky; top: 0; inset: auto; width: auto; height: auto; flex-direction: row; align-items: center; padding: 8px 12px; gap: 4px; overflow-x: auto; }
+    .brand { padding: 4px 8px 4px 4px; }
+    .brand-word { font-size: 17px; }
+    .side-group { background: transparent; padding: 0; display: flex; gap: 2px; }
+    .side-title, .side-foot, .side-link .lbl-ext { display: none; }
+    .side-link { padding: 8px 10px; white-space: nowrap; font-size: 13px; }
+    .main { margin-left: 0; }
+    .filter-bar { position: static; }
+    html { scroll-padding-top: 64px; }
+  }
+  @media (max-width: 640px) {
+    .band { padding: 28px 16px; }
+    .filter-inner { padding: 10px 16px; gap: 10px; }
+    .filter-meta { margin-left: 0; width: 100%; justify-content: space-between; }
+    .mini-stats { grid-template-columns: 1fr 1fr; }
+    .hbar { grid-template-columns: 96px 1fr 56px; }
+    .heat { gap: 1px; grid-template-columns: 26px repeat(24, minmax(0, 1fr)); }
+    .side-link svg { display: none; }
+    footer { margin: 16px 16px 0; }
+  }
+  /* =====================================================================
+     Button motion system — hover ลอยขึ้น, กดยุบ, ripple จากจุดที่คลิก
+     ใช้ easing ชุดเดียวกันทั้งหน้า (ส่วนนี้อยู่ท้ายสุดจึงทับค่าเดิม)
+     ===================================================================== */
+  :root {
+    --ease-out: cubic-bezier(.22, 1, .36, 1);
+    --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+    --t-fast: .16s; --t-med: .32s;
+  }
+  .btn, .btn-sm, .segmented button, .pager button, .icon-btn, .side-link, .info, #cdRange button, #corrRange button {
+    position: relative; overflow: hidden; isolation: isolate;
+    -webkit-tap-highlight-color: transparent;
+    transition: transform var(--t-med) var(--ease-spring), background-color var(--t-med) var(--ease-out),
+                box-shadow var(--t-med) var(--ease-out), color var(--t-med) var(--ease-out), opacity var(--t-med) var(--ease-out);
+  }
+  .info { overflow: visible; }
+
+  /* ---- ปุ่มหลัก (เขียว) ---- */
+  .btn-ink { box-shadow: 0 0 0 0 rgba(30,215,96,0), 0 4px 14px rgba(0,0,0,.35); }
+  .btn-ink:hover { background: var(--green-hover); transform: translateY(-2px) scale(1.04);
+    box-shadow: 0 0 0 6px rgba(30,215,96,.14), 0 10px 26px rgba(30,215,96,.28); }
+  .btn-ink::before { content: ""; position: absolute; inset: 0; z-index: -1;
+    background: linear-gradient(115deg, transparent 30%, rgba(255,255,255,.55) 50%, transparent 70%);
+    transform: translateX(-120%); }
+  .btn-ink:hover::before { transform: translateX(120%); transition: transform .75s var(--ease-out); }
+  .btn-ink svg, .btn-line svg { transition: transform var(--t-med) var(--ease-spring); }
+  .btn-ink:hover svg, .btn-line:hover svg { transform: translateX(4px); }
+
+  /* ---- ปุ่มขอบ ---- */
+  .btn-line:hover { background: rgba(255,255,255,.08); transform: translateY(-2px) scale(1.03);
+    box-shadow: inset 0 0 0 1px var(--text), 0 10px 24px rgba(0,0,0,.4); }
+  .btn-sm:hover { background: rgba(255,255,255,.08); transform: translateY(-1px) scale(1.04);
+    box-shadow: inset 0 0 0 1px var(--text), 0 6px 16px rgba(0,0,0,.35); }
+  .btn-sm svg { transition: transform var(--t-med) var(--ease-spring); }
+  .btn-sm:hover svg { transform: translateY(2px); }
+
+  /* ---- chip / pager ---- */
+  .segmented button:hover:not([aria-pressed="true"]), .pager button:hover:not(:disabled):not([aria-current="page"]) {
+    background: rgba(255,255,255,.16); transform: translateY(-1px) scale(1.05); }
+  .segmented button[aria-pressed="true"], .pager button[aria-current="page"] {
+    box-shadow: 0 0 0 4px rgba(30,215,96,.12), 0 6px 16px rgba(30,215,96,.22); }
+  .segmented button[aria-pressed="true"]:hover, .pager button[aria-current="page"]:hover { transform: scale(1.05); }
+
+  /* ---- ปุ่มไอคอน ---- */
+  .icon-btn:hover { background: var(--card-hover); transform: scale(1.1); box-shadow: 0 6px 16px rgba(0,0,0,.4); }
+  .icon-btn svg { transition: transform .5s var(--ease-spring); }
+  #refreshBtn:hover svg { transform: rotate(180deg); }
+  #cdClose:hover svg { transform: rotate(90deg); }
+
+  /* ---- เมนูซ้าย ---- */
+  .side-link svg { transition: transform var(--t-med) var(--ease-spring), color var(--t-med) var(--ease-out); }
+  .side-link:hover svg { transform: scale(1.15); color: var(--text); }
+  .side-link:hover { transform: translateX(3px); }
+  .side-link::after { content: ""; position: absolute; left: 0; top: 50%; width: 3px; height: 0; border-radius: 3px;
+    background: var(--green); transform: translateY(-50%); transition: height var(--t-med) var(--ease-spring); }
+  .side-link.active::after { height: 60%; }
+
+  /* ---- ⓘ ---- */
+  .info:hover, .info:focus-visible { transform: scale(1.2); }
+
+  /* ---- ตอนกด: ยุบลงเร็ว แล้วเด้งกลับด้วย spring ---- */
+  .btn:active, .btn-sm:active, .segmented button:active, .pager button:not(:disabled):active,
+  .icon-btn:active, .side-link:active, .info:active {
+    transform: scale(.94) !important; transition-duration: .08s;
+  }
+
+  /* ---- แถวในรายการ (เหตุการณ์ / ตาราง / สัญญาณ) ---- */
+  .ev, .warn, table.data tbody tr, .hbar { transition: background-color var(--t-fast) var(--ease-out), transform var(--t-med) var(--ease-spring); }
+  .ev:hover { transform: translateX(4px); }
+  .ev:active { transform: scale(.985); transition-duration: .08s; }
+  .src-links a { transition: background-color var(--t-med) var(--ease-out), transform var(--t-med) var(--ease-spring); }
+  .src-links a:hover { transform: translateX(4px); }
+  .src-links a svg { transition: transform var(--t-med) var(--ease-spring); }
+  .src-links a:hover svg { transform: translate(2px, -2px); color: var(--text); }
+
+  /* ---- ripple ---- */
+  .ripple { position: absolute; border-radius: 50%; pointer-events: none; z-index: -1;
+    background: currentColor; opacity: .28; transform: scale(0); animation: ripple .6s var(--ease-out) forwards; }
+  .btn-ink .ripple, .segmented button[aria-pressed="true"] .ripple, .pager button[aria-current="page"] .ripple { background: #000; opacity: .18; }
+  @keyframes ripple { to { transform: scale(1); opacity: 0; } }
+
+  /* ---- focus ของคีย์บอร์ด ---- */
+  .btn:focus-visible, .btn-sm:focus-visible, .segmented button:focus-visible, .pager button:focus-visible, .icon-btn:focus-visible, .side-link:focus-visible {
+    outline: none; box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--green); }
+
+  @media (prefers-reduced-motion: reduce) {
+    .btn, .btn-sm, .segmented button, .pager button, .icon-btn, .side-link, .info, .ev, .src-links a,
+    .btn *, .icon-btn svg, .side-link svg { transition: none !important; }
+    .btn:hover, .btn-sm:hover, .segmented button:hover, .pager button:hover, .icon-btn:hover, .side-link:hover, .ev:hover, .src-links a:hover { transform: none !important; }
+    .btn-ink::before, .ripple { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar" aria-label="เมนู">
+  <a class="brand" href="#top" aria-label="Crypto Price">
+    <span class="brand-logo"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.8 8.6c-.5-.9-1.6-1.4-2.8-1.4-1.7 0-3 .9-3 2.2 0 3.1 6 1.6 6 4.8 0 1.3-1.3 2.3-3 2.3-1.3 0-2.5-.6-3-1.6"/><path d="M12 5.5v13"/></svg></span>
+    <span class="brand-word">Crypto Price</span>
+  </a>
+  <nav class="side-group">
+    <a class="side-link active" href="#top" data-sec="top"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21h-6v-6H9v6H3z"/></svg><span>ภาพรวม</span></a>
+    <a class="side-link" href="#prices" data-sec="prices"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M14.8 8.6c-.5-.9-1.6-1.4-2.8-1.4-1.7 0-3 .9-3 2.2 0 3.1 6 1.6 6 4.8 0 1.3-1.3 2.3-3 2.3-1.3 0-2.5-.6-3-1.6"/><path d="M12 5.5v13"/></svg><span>ราคาเหรียญ</span></a>
+    <a class="side-link" href="#explorer" data-sec="explorer"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17l6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg><span>เหตุการณ์</span></a>
+    <a class="side-link" href="#forecast" data-sec="forecast"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg><span>พยากรณ์</span></a>
+    <a class="side-link" href="#correlation" data-sec="correlation"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z"/></svg><span>ความสัมพันธ์</span></a>
+    <a class="side-link" href="#market" data-sec="market"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span>ตลาดและข้อมูล</span></a>
+    <a class="side-link" href="#sources" data-sec="sources"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5a2 2 0 0 1 2-2h12v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M8 7h6M8 11h6"/></svg><span>แหล่งข้อมูล</span></a>
+  </nav>
+  <nav class="side-group">
+    <div class="side-title">เครื่องมือ</div>
+    <a class="side-link" href="http://localhost:8081" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 4h16v16H4z"/><path d="M4 9h16M9 9v11"/></svg><span>Airflow<span class="lbl-ext"> ↗</span></span></a>
+    <a class="side-link" href="http://localhost:9021/buckets/bitkub-lake/" target="_blank" rel="noopener"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12c0 1.7 3.6 3 8 3s8-1.3 8-3"/></svg><span>Lake Browser<span class="lbl-ext"> ↗</span></span></a>
+  </nav>
+  <div class="side-foot">ข้อมูลจาก <a href="https://github.com/bitkub/bitkub-official-api-docs" target="_blank" rel="noopener" style="text-decoration:underline">Bitkub Public API</a><br>งานวิเคราะห์เพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</div>
+</aside>
+<div class="main">
+
+<!-- ================= HERO ================= -->
+<section class="band hero-band" id="top">
+  <div class="hero-art" aria-hidden="true">
+    <div class="bill-wrap" style="top: 5%; left: 54%; --r: -9deg; --s: .9;"><div class="bill"></div></div>
+    <div class="bill-wrap hide-md" style="bottom: 2%; right: 22%; --r: 7deg; --s: 1.05; animation-delay: -3s;"><div class="bill"></div></div>
+    <div class="bill-wrap hide-md hide-sm" style="bottom: 3%; left: 47%; --r: -4deg; --s: .72; animation-delay: -6s;"><div class="bill"></div></div>
+    <div class="coin-wrap" style="top: 9%; right: 5%;"><div class="coin-face"></div></div>
+    <div class="coin-wrap hide-sm" style="top: 20%; left: 38%; width: 40px; height: 40px; animation-delay: -1.5s;"><div class="coin-face" style="animation-duration: 4.4s;"></div></div>
+    <div class="coin-wrap hide-md" style="bottom: 16%; left: 33%; width: 46px; height: 46px; animation-delay: -3s;"><div class="coin-face" style="animation-duration: 3s; animation-direction: reverse;"></div></div>
+    <div class="coin-wrap hide-md" style="bottom: 10%; right: 4%; width: 34px; height: 34px; animation-delay: -2.2s;"><div class="coin-face" style="animation-duration: 5s;"></div></div>
+  </div>
+  <div class="inner hero">
+    <div>
+      <span class="eyebrow"><span class="dot" id="liveDot"></span><span id="liveText">กำลังโหลดสถานะ pipeline…</span></span>
+      <h1>ราคาคริปโต<br>ในตลาดไทย</h1>
+      <p class="hero-sub">ระบบสแกนกราฟแท่งเทียนรายนาทีของเหรียญยอดนิยมบน Bitkub ย้อนหลังทั้งปี
+        หาจังหวะที่ราคาพุ่งแรงพร้อม volume ผิดปกติแล้วร่วงกลับ (pump &amp; dump) และพยากรณ์ volume กับความผันผวนล่วงหน้า</p>
+      <div class="hero-actions">
+        <a class="btn btn-ink" href="#explorer">ดูเหตุการณ์<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+        <a class="btn btn-line" href="#forecast">ดูการพยากรณ์<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6"/></svg></a>
+      </div>
+    </div>
+    <div class="counter-card">
+      <div class="caption-up">แท่งเทียน 1 นาทีใน Data Lake</div>
+      <div class="big num" id="heroRows">–</div>
+      <div class="unit" id="heroUnit">แถว (silver, หลัง dedupe)</div>
+      <div class="mini-stats">
+        <div><div class="v num" id="heroCoins">–</div><div class="k">เหรียญที่เฝ้าดู</div></div>
+        <div><div class="v num" id="heroSpan">–</div><div class="k">ช่วงข้อมูล</div></div>
+        <div><div class="v num" id="heroCand">–</div><div class="k">ผู้ต้องสงสัยทั้งหมด</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PIPELINE ================= -->
+<section class="band band-soft" id="pipeline">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>เส้นทางของข้อมูล</h2>
+        <p>Airflow ดึงข้อมูลทุกชั่วโมง เก็บเป็น Parquet ใน Data Lake แล้ว DuckDB แปลงเป็น bronze → silver → gold ก่อนส่งให้โมเดลและหน้านี้</p>
+      </div>
+    </div>
+    <div class="pipeline">
+      <div class="stage">
+        <span class="tier">Source</span>
+        <h3>Bitkub API</h3>
+        <div class="desc"><code>bitkub_ingestion_dag</code> ทุกชั่วโมง ฟรี ไม่ต้องใช้ key</div>
+        <div class="metric num" id="stApi">–</div>
+        <div class="metric-k" id="stApiK">API calls รอบล่าสุด</div>
+        <svg class="stage-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="stage">
+        <span class="tier bronze">Bronze</span><button class="info" type="button" data-term="bronze" aria-label="คำอธิบาย">i</button>
+        <h3>แท่งเทียนดิบ</h3>
+        <div class="desc">OHLCV รายนาที แยกโฟลเดอร์ตามเหรียญ</div>
+        <div class="metric num" id="stBronze">–</div>
+        <div class="metric-k" id="stBronzeK">แถว</div>
+        <svg class="stage-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="stage">
+        <span class="tier silver">Silver</span><button class="info" type="button" data-term="silver" aria-label="คำอธิบาย">i</button>
+        <h3>Feature รายนาที</h3>
+        <div class="desc">dedupe, % เปลี่ยน 5 นาที, volume เทียบค่าปกติ 7 วัน</div>
+        <div class="metric num" id="stSilver">–</div>
+        <div class="metric-k" id="stSilverK">แถว</div>
+        <svg class="stage-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="stage">
+        <span class="tier gold">Gold</span><button class="info" type="button" data-term="gold" aria-label="คำอธิบาย">i</button>
+        <h3>เหตุการณ์ + สรุป</h3>
+        <div class="desc">pump events, รายชั่วโมง, สถิติเหรียญ → Postgres</div>
+        <div class="metric num" id="stGold">–</div>
+        <div class="metric-k" id="stGoldK">refresh ล่าสุด</div>
+        <svg class="stage-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg>
+      </div>
+      <div class="stage">
+        <span class="tier">ML</span>
+        <h3>พยากรณ์ + ตรวจจับ</h3>
+        <div class="desc"><code>bitkub_ml_pipeline_dag</code> ทุก 6 ชม.</div>
+        <div class="metric num" id="stMl">–</div>
+        <div class="metric-k">โมเดลที่ deploy อยู่</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= PRICES ================= -->
+<section class="band" id="prices">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>ราคาเหรียญ</h2>
+        <p id="pricesSub">ราคาล่าสุดของทุกเหรียญที่ระบบเฝ้าดู · กดที่เหรียญเพื่อดูกราฟและรายละเอียด</p>
+        <a class="src-link" href="https://api.bitkub.com/api/v3/market/ticker" target="_blank" rel="noopener">ที่มา: Bitkub · /api/v3/market/ticker <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+      </div>
+      <div class="head-tools">
+      <a class="btn-sm" href="/api/export/prices.csv" download><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>CSV</a>
+      <div class="search-wrap">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input class="search" id="priceSearch" type="search" placeholder="ค้นหาเหรียญ เช่น BTC, Pepe" aria-label="ค้นหาเหรียญ">
+      </div>
+      </div>
+    </div>
+
+    <div class="card coin-card" id="coinDetail" hidden>
+      <div class="coin-head">
+        <div class="coin-id"><div class="caption-up" id="cdRank">เหรียญ</div><h3 id="cdSym">–</h3><div class="nm" id="cdName"></div></div>
+        <div class="coin-price"><span class="p" id="cdPrice">–</span><span class="chg" id="cdChg"></span></div>
+        <div class="coin-tools">
+          <div class="segmented" id="cdRange" role="group" aria-label="ช่วงกราฟ">
+            <button data-cd="7">7 วัน</button><button data-cd="30">30 วัน</button><button data-cd="90">90 วัน</button><button data-cd="365">1 ปี</button>
+          </div>
+          <a class="btn-sm" id="cdCsv" href="#" download><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>CSV</a>
+          <button class="icon-btn" id="cdClose" aria-label="ปิดรายละเอียด" title="ปิด">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="coin-stats" id="cdStats"></div>
+      <div class="legend" style="margin: 10px 0 4px;">
+        <span><i class="key-line" style="border-color: var(--s-blue)"></i>ราคาปิด</span>
+        <span><i class="key-box" style="background: var(--warning); border-radius: 50%"></i>เหตุการณ์น่าสงสัย (ราคา ≥ 10%, volume ≥ 10×)</span>
+      </div>
+      <div class="chart" id="cdChart"></div>
+      <div class="card-head" style="margin-top: 18px;"><div><h3 style="font-size:16px">เหตุการณ์ของเหรียญนี้</h3><div class="sub" id="cdEvSub"></div></div></div>
+      <div class="scroll-x" id="cdEvents"></div>
+    </div>
+
+    <div class="card full">
+      <div class="scroll-x" id="priceTable"></div>
+      <div class="table-foot"><span id="priceFoot"></span><nav class="pager" id="pricePager" aria-label="เปลี่ยนหน้าตารางราคา"></nav></div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FILTER BAR ================= -->
+<div class="filter-bar" id="filters">
+  <div class="filter-inner">
+    <div class="segmented" role="group" aria-label="ช่วงเวลา">
+      <button data-days="7">7 วัน</button>
+      <button data-days="30">30 วัน</button>
+      <button data-days="90">90 วัน</button>
+      <button data-days="365">1 ปี</button>
+      <button data-days="0">ทั้งหมด</button>
+    </div>
+    <label class="slider">ราคาพุ่ง ≥ <input type="range" id="fPump" min="5" max="40" step="1" value="10"><output id="fPumpV">10%</output></label><button class="info" type="button" data-term="pumppct" aria-label="คำอธิบาย">i</button>
+    <label class="slider">Volume ≥ <input type="range" id="fVol" min="5" max="100" step="5" value="10"><output id="fVolV">10×</output></label><button class="info" type="button" data-term="volx" aria-label="คำอธิบาย">i</button>
+    <label class="check"><input type="checkbox" id="fSingle" checked> ตัดเหตุการณ์ที่เกิดพร้อมกันทั้งตลาด</label><button class="info" type="button" data-term="market" aria-label="คำอธิบาย">i</button>
+    <div class="filter-meta">
+      <span id="updatedAt">–</span>
+      <button class="icon-btn" id="refreshBtn" title="โหลดข้อมูลใหม่" aria-label="โหลดข้อมูลใหม่">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ================= EVENTS ================= -->
+<section class="band" style="padding-top: 40px;" id="explorer">
+  <div class="inner" id="dash">
+    <div class="setup" id="setupCard">
+      <h3>ยังไม่มีข้อมูลใน Data Lake</h3>
+      <p class="muted" style="margin:6px 0 0;">เริ่มได้ใน 3 ขั้นตอน (หน้านี้อัปเดตเองทุก 2 นาที)</p>
+      <ol>
+        <li>เปิด Airflow <a href="http://localhost:8081" target="_blank" rel="noopener">localhost:8081</a> แล้ว Unpause <code>bitkub_ingestion_dag</code> (รันครั้งแรกจะ backfill ย้อนหลัง ~10 นาที)</li>
+        <li>Unpause <code>bitkub_lakehouse_dag</code> แล้วกด ▶ Trigger หลัง backfill เสร็จ</li>
+        <li>Unpause <code>bitkub_ml_pipeline_dag</code> แล้วกด ▶ Trigger เพื่อเทรนโมเดล</li>
+      </ol>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">เหตุการณ์น่าสงสัย<button class="info" type="button" data-term="pump" aria-label="คำอธิบาย">i</button></div><div class="v num" id="kEvents">–</div><div class="s" id="kEventsS">ตามเกณฑ์ที่เลือก</div></div>
+      <div class="kpi"><div class="k">ร่วงกลับจริง (dump)<button class="info" type="button" data-term="dump" aria-label="คำอธิบาย">i</button></div><div class="v num" id="kDump">–</div><div class="s" id="kDumpS">เสียกำไรคืนครึ่งหนึ่งใน 60 นาที</div></div>
+      <div class="kpi"><div class="k">ราคาพุ่งเฉลี่ย<button class="info" type="button" data-term="pumppct" aria-label="คำอธิบาย">i</button></div><div class="v num" id="kPump">–</div><div class="s" id="kPumpS">จากราคาก่อนเริ่มพุ่ง</div></div>
+      <div class="kpi"><div class="k">เวลาก่อนร่วงกลับ<button class="info" type="button" data-term="timedump" aria-label="คำอธิบาย">i</button></div><div class="v num" id="kTime">–</div><div class="s">ค่ากลาง หลังจุดสูงสุด</div></div>
+      <div class="kpi"><div class="k">เหรียญที่เจอบ่อยสุด</div><div class="v num" id="kTop">–</div><div class="s" id="kTopS">–</div></div>
+    </div>
+
+    <div class="grid-explorer">
+      <div class="card">
+        <div class="card-head"><div><h3>รายการเหตุการณ์</h3><div class="sub" id="evCount">ล่าสุดอยู่บนสุด · กดเพื่อดูกราฟ</div></div>
+          <a class="btn-sm" id="evCsv" href="/api/export/events.csv" download title="ดาวน์โหลดเหตุการณ์ตามตัวกรองปัจจุบัน"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"/></svg>CSV</a></div>
+        <div class="ev-list" id="evList" role="listbox" aria-label="เหตุการณ์"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><h3 id="evTitle">กราฟเหตุการณ์</h3><div class="sub" id="evSub">แท่งเทียน 1 นาที ก่อนและหลังเหตุการณ์ (เวลาไทย)</div>
+          <a class="src-link" id="evSrc" href="#sources">ที่มา: Bitkub · /tradingview/history <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a></div>
+          <div class="legend">
+            <button class="info" type="button" data-term="candle" aria-label="คำอธิบาย">i</button><span><i class="key-box hollow"></i>ราคาขึ้น (กลวง)</span>
+            <span><i class="key-box" style="background: var(--down)"></i>ราคาลง (ทึบ)</span>
+            <span><i class="key-box" style="background: rgba(255,164,43,.3)"></i>ช่วงพุ่ง</span>
+          </div>
+        </div>
+        <div class="chart" id="candleChart"></div>
+        <div class="ev-stats" id="evStats"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div><h3>เหรียญที่มีรูปแบบน่าสงสัยบ่อยที่สุด</h3><div class="sub">แท่งฟ้า = เหตุการณ์ทั้งหมด · ส้ม = ในนั้นร่วงกลับจริง</div></div></div>
+        <div class="hbars" id="coinBars"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>ช่วงเวลาที่เกิดบ่อย<button class="info" type="button" data-term="heatmap" aria-label="คำอธิบาย">i</button></h3><div class="sub">จำนวนเหตุการณ์ตามวันและชั่วโมง (เวลาไทย)</div></div></div>
+        <div class="heat" id="heatmap" role="img" aria-label="heatmap วันและชั่วโมง"></div>
+        <div class="ramp"><span>น้อย</span><span class="bar"></span><span>มาก</span><span id="heatMax"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= FORECAST ================= -->
+<section class="band band-soft" id="forecast">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>การพยากรณ์</h2>
+        <p>ทำนายสิ่งที่มีรูปแบบให้เรียนรู้ได้จริง คือ volume และความผันผวน ไม่ได้ทำนายราคา ทุกโมเดลต้องชนะวิธีเดาง่ายๆ (baseline) ก่อนจึงจะถูกใช้งาน</p>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Volume ซื้อขายทั้งตลาด</h3><div class="sub">มูลค่าซื้อขายรายชั่วโมง (บาท) 7 วันล่าสุด + พยากรณ์ 6 ชม.</div></div>
+          <div class="legend"><span><i class="key-line" style="border-color: var(--s-blue)"></i>ค่าจริง</span><span><i class="key-line dash" style="border-color: var(--s-orange)"></i>พยากรณ์</span></div>
+        </div>
+        <div class="chart" id="volChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-head">
+          <div><h3>ความผันผวนรายชั่วโมง<button class="info" type="button" data-term="volatility" aria-label="คำอธิบาย">i</button></h3><div class="sub">ราคาแกว่งแรงแค่ไหน (%) 3 วันล่าสุด + พยากรณ์ 6 ชม.</div></div>
+          <select id="rvSymbol" aria-label="เลือกเหรียญ"></select>
+        </div>
+        <div class="chart" id="rvChart"></div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div><h3>Early warning<button class="info" type="button" data-term="earlywarning" aria-label="คำอธิบาย">i</button></h3><div class="sub">สัญญาณแรก (ราคา +3% และ volume 3 เท่าใน 5 นาที) ใน 48 ชม. ล่าสุด และโอกาสที่โมเดลให้ว่าจะพุ่งถึง +10%</div></div>
+        </div>
+        <div class="warn-list" id="warnList"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>ผลของโมเดล<button class="info" type="button" data-term="baseline" aria-label="คำอธิบาย">i</button></h3><div class="sub">วัดบนข้อมูลช่วงท้ายสุด 20% ที่โมเดลไม่เคยเห็น</div></div></div>
+        <div class="scroll-x" id="modelTable"></div>
+        <div class="callout" id="dirCallout" style="display:none"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MODEL TRACKING ================= -->
+<section class="band" id="modeltrack" style="padding-top: 0;">
+  <div class="inner">
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head">
+          <div><h3>ทาย vs ของจริง<button class="info" type="button" data-term="backtest" aria-label="คำอธิบาย">i</button></h3><div class="sub" id="btSub">ผลทายของโมเดลรอบล่าสุดบนช่วงข้อมูลที่โมเดลไม่เคยเห็น</div></div>
+          <select id="btSelect" aria-label="เลือกโมเดล"></select>
+        </div>
+        <div class="legend" style="margin-bottom: 6px;">
+          <span><i class="key-line" style="border-color: var(--s-blue)"></i>ค่าจริง</span>
+          <span><i class="key-line dash" style="border-color: var(--s-orange)"></i>โมเดลทาย</span>
+          <span><i class="key-line dash" style="border-color: #7c7c7c"></i>Baseline</span>
+        </div>
+        <div class="chart" id="btChart"></div>
+        <div class="bt-stats" id="btStats"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>ความแม่นของโมเดลแต่ละรอบ</h3><div class="sub">ทุกครั้งที่ ML pipeline รัน · เส้นทึบ = โมเดล · เส้นประ = baseline</div></div></div>
+        <div class="mh-grid" id="mhGrid"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= CORRELATION ================= -->
+<section class="band" id="correlation">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>ความสัมพันธ์ระหว่างเหรียญ<button class="info" type="button" data-term="correlation" aria-label="คำอธิบาย">i</button></h2>
+        <p>ราคาเหรียญไหนขึ้นลงไปด้วยกัน คำนวณจากผลตอบแทนรายชั่วโมง · ถ้าหลายเหรียญขยับตาม BTC มาก แปลว่าตลาดทั้งตลาดเคลื่อนตาม BTC</p>
+      </div>
+      <div class="segmented" id="corrRange" role="group" aria-label="ช่วงข้อมูล">
+        <button data-cdays="7">7 วัน</button><button data-cdays="30">30 วัน</button><button data-cdays="90">90 วัน</button>
+      </div>
+    </div>
+    <div class="grid-2" style="margin-top: 0;">
+      <div class="card">
+        <div class="card-head"><div><h3>Heatmap 15 เหรียญใหญ่</h3><div class="sub">เรียงตาม volume · ชี้ที่ช่องเพื่อดูค่า</div></div></div>
+        <div class="corr" id="corrGrid" role="img" aria-label="heatmap ค่าสหสัมพันธ์"></div>
+        <div class="ramp"><span>−1 สวนทาง</span><span class="div-ramp"></span><span>+1 ไปทางเดียวกัน</span></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>ขยับตาม BTC แค่ไหน</h3><div class="sub" id="btcSub">ค่าสหสัมพันธ์กับ BTC ของแต่ละเหรียญ</div></div></div>
+        <div id="btcBars"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MARKET + QUALITY ================= -->
+<section class="band" id="market">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>ภาพรวมตลาดและคุณภาพข้อมูล</h2>
+        <p id="tickerSub">เหรียญที่ขึ้นหรือลงแรงที่สุดใน 24 ชม. จาก snapshot ล่าสุด</p>
+        <a class="src-link" href="https://api.bitkub.com/api/v3/market/ticker" target="_blank" rel="noopener">ที่มา: Bitkub · /api/v3/market/ticker <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+      </div>
+    </div>
+    <div class="grid-2">
+      <div class="card"><div class="card-head"><div><h3>ขึ้นแรงสุด 24 ชม.</h3></div></div><div class="scroll-x" id="gainers"></div></div>
+      <div class="card"><div class="card-head"><div><h3>ลงแรงสุด 24 ชม.</h3></div></div><div class="scroll-x" id="losers"></div></div>
+    </div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-head"><div><h3>การดึงข้อมูลแต่ละรอบ</h3><div class="sub">จำนวนแท่งเทียนใหม่ต่อรอบ (24 รอบล่าสุด)</div></div></div>
+        <div class="chart" id="runChart"></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>สภาพคล่องรายเหรียญ<button class="info" type="button" data-term="liquidity" aria-label="คำอธิบาย">i</button></h3><div class="sub">% ของนาทีที่มีการซื้อขาย · ต่ำ = เหรียญเงียบ ปั่นง่าย</div></div></div>
+        <div class="hbars" id="dqBars"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= SOURCES ================= -->
+<section class="band" id="sources">
+  <div class="inner">
+    <div class="section-head">
+      <div>
+        <h2>แหล่งข้อมูลและอ้างอิง</h2>
+        <p>ข้อมูลตลาดทั้งหมดดึงจาก Bitkub Public API (ฟรี ไม่ต้องใช้ key) กดลิงก์เพื่อเปิดดูข้อมูลต้นทางได้ทันที</p>
+      </div>
+    </div>
+    <div class="src-grid">
+      <div class="card src-card">
+        <div class="card-head"><div><h3>แหล่งข้อมูลหลัก</h3></div></div>
+        <p>ราคา แท่งเทียน และรายชื่อเหรียญ มาจาก Bitkub ตลาดซื้อขายสินทรัพย์ดิจิทัลของไทย ผ่าน Public API ที่เปิดให้ใช้งานสาธารณะ</p>
+        <div class="src-links">
+          <a href="https://github.com/bitkub/bitkub-official-api-docs" target="_blank" rel="noopener"><span>เอกสาร Bitkub Public API<small>github.com/bitkub/bitkub-official-api-docs</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://www.bitkub.com" target="_blank" rel="noopener"><span>เว็บไซต์ Bitkub<small>bitkub.com</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+        </div>
+        <div class="src-note"><b>สิ่งที่ระบบคำนวณเอง</b> ไม่ได้มาจาก Bitkub: เหตุการณ์น่าสงสัย, การพยากรณ์, early warning, ค่าสหสัมพันธ์ และคะแนนความผิดปกติ ทั้งหมดคำนวณจากข้อมูลดิบด้วยวิธีที่อธิบายไว้ในปุ่ม ⓘ</div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div><h3>Endpoint ที่ใช้</h3><div class="sub">กดที่ลิงก์เพื่อเปิดข้อมูลดิบ (JSON) ตัวอย่างล่าสุดจาก Bitkub</div></div></div>
+        <div class="scroll-x">
+          <table class="data endpoints">
+            <thead><tr><th>ข้อมูล</th><th>Endpoint</th><th>ใช้ทำอะไรในเว็บนี้</th><th>ดึงทุก</th></tr></thead>
+            <tbody>
+              <tr><td>รายชื่อเหรียญ</td><td><a href="https://api.bitkub.com/api/v3/market/symbols" target="_blank" rel="noopener">/api/v3/market/symbols</a></td><td>ชื่อเต็ม และวันที่เปิดเทรด (ป้าย "เหรียญใหม่")</td><td>1 ชม.</td></tr>
+              <tr><td>ราคาและสถิติ 24 ชม.</td><td><a href="https://api.bitkub.com/api/v3/market/ticker" target="_blank" rel="noopener">/api/v3/market/ticker</a></td><td>ตารางราคา, ขึ้น/ลงแรงสุด, เลือก 50 เหรียญที่ volume สูงสุด</td><td>1 ชม.</td></tr>
+              <tr><td>แท่งเทียน 1 นาที</td><td><a id="tvLink" href="https://api.bitkub.com/tradingview/history?symbol=BTC_THB&amp;resolution=1" target="_blank" rel="noopener">/tradingview/history</a></td><td>ทุกกราฟ, การตรวจจับเหตุการณ์, การพยากรณ์ (ย้อนหลัง 365 วันตอนเริ่ม)</td><td>1 ชม.</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="card-head" style="margin-top: 20px;"><div><h3 style="font-size: 16px;">เครื่องมือที่ใช้ประมวลผล</h3></div></div>
+        <div class="src-links tools">
+          <a href="https://airflow.apache.org" target="_blank" rel="noopener"><span>Apache Airflow<small>ตั้งเวลาและรัน pipeline</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://github.com/seaweedfs/seaweedfs" target="_blank" rel="noopener"><span>SeaweedFS<small>Data Lake (S3 API)</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://duckdb.org" target="_blank" rel="noopener"><span>DuckDB<small>ประมวลผลข้อมูลหลักล้านแถว</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://www.postgresql.org" target="_blank" rel="noopener"><span>PostgreSQL<small>เก็บตารางสรุปให้หน้าเว็บ</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://scikit-learn.org" target="_blank" rel="noopener"><span>scikit-learn<small>โมเดล ML</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+          <a href="https://fastapi.tiangolo.com" target="_blank" rel="noopener"><span>FastAPI<small>API ของหน้านี้</small></span><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/></svg></a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  ข้อมูลจาก <a href="https://github.com/bitkub/bitkub-official-api-docs" target="_blank" rel="noopener" style="text-decoration:underline">Bitkub Public API</a> · Airflow → SeaweedFS (S3) → DuckDB → Postgres → FastAPI ·
+  API: <code>/api/overview</code> <code>/api/events</code> <code>/api/models</code><br>
+  <span style="opacity:.8">งานวิเคราะห์ข้อมูลเพื่อการศึกษา ไม่ใช่คำแนะนำการลงทุน</span>
+</footer>
+</div><!-- /.main -->
+
+<div class="tooltip" id="tip"></div>
+
+<script>
+(function () {
+  "use strict";
+  const C = { blue: '#3987e5', orange: '#d95926', aqua: '#199e70', red: '#e66767', grid: '#2a2a2a', axis: '#3e3e3e', muted: '#7c7c7c', surface: '#181818', pump: '#ffa42b' };
+  const DAYS_TH = ['', 'จ.', 'อ.', 'พ.', 'พฤ.', 'ศ.', 'ส.', 'อา.'];
+  const HEAT = ['#242424', '#184f95', '#1c5cab', '#256abf', '#3987e5', '#6da7ec', '#9ec5f4', '#cde2fb'];
+  const TZ = 'Asia/Bangkok';
+  const nf = new Intl.NumberFormat('th-TH');
+  const nf1 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 1 });
+  const nf2 = new Intl.NumberFormat('th-TH', { maximumFractionDigits: 2 });
+  const $ = (id) => document.getElementById(id);
+  const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+  const toDate = (iso) => iso ? new Date(/[zZ]|[+-]\d\d:\d\d$/.test(iso) ? iso : iso + 'Z') : null;
+  const fmtTime = (d, o) => new Intl.DateTimeFormat('th-TH', Object.assign({ timeZone: TZ }, o)).format(d);
+  const compact = (n) => n == null ? '–' : Math.abs(n) >= 1e9 ? nf1.format(n / 1e9) + 'B' : Math.abs(n) >= 1e6 ? nf1.format(n / 1e6) + 'M' : Math.abs(n) >= 1e4 ? nf1.format(n / 1e3) + 'K' : nf.format(Math.round(n));
+  const price = (p) => p == null ? '–' : p >= 100 ? nf2.format(p) : p >= 1 ? new Intl.NumberFormat('th-TH', { maximumFractionDigits: 4 }).format(p) : new Intl.NumberFormat('th-TH', { maximumSignificantDigits: 4 }).format(p);
+  const pct = (v, sign = true) => v == null ? '–' : (sign && v > 0 ? '+' : '') + nf1.format(v) + '%';
+  function ago(d) {
+    if (!d) return '–';
+    const s = (Date.now() - d.getTime()) / 1000;
+    if (s < 90) return 'เมื่อสักครู่';
+    if (s < 3600) return Math.round(s / 60) + ' นาทีที่แล้ว';
+    if (s < 86400) return Math.round(s / 3600) + ' ชม. ที่แล้ว';
+    return Math.round(s / 86400) + ' วันที่แล้ว';
+  }
+  const mins = (m) => m == null ? '–' : m < 60 ? nf.format(Math.round(m)) + ' นาที' : nf1.format(m / 60) + ' ชม.';
+
+  // ---------------- state (ตัวกรองจำไว้ในเบราว์เซอร์) ----------------
+  const state = { days: 90, min_pump: 10, min_volx: 10, single: true, event: null, rvSymbol: null };
+  try { Object.assign(state, JSON.parse(localStorage.getItem('pumpRadar.filters') || '{}'), { event: null }); } catch (e) {}
+  const saveState = () => { try { localStorage.setItem('pumpRadar.filters', JSON.stringify({ days: state.days, min_pump: state.min_pump, min_volx: state.min_volx, single: state.single, rvSymbol: state.rvSymbol, coinDays: state.coinDays, corrDays: state.corrDays, bt: state.bt })); } catch (e) {} };
+  const qs = () => `days=${state.days}&min_pump=${state.min_pump}&min_volx=${state.min_volx}&single=${state.single}`;
+  async function getJSON(url) { const r = await fetch(url); if (!r.ok) throw new Error(url + ' ' + r.status); return r.json(); }
+
+  // ---------------- tooltip ----------------
+  const tip = $('tip');
+  function showTip(host, x, y, build, wide) {
+    tip.classList.toggle('wide', !!wide);
+    tip.replaceChildren(); build(tip); tip.style.opacity = '1';
+    const hr = host.getBoundingClientRect(), tw = tip.offsetWidth, th = tip.offsetHeight;
+    let left = hr.left + window.scrollX + x + 14;
+    if (left + tw > window.scrollX + document.documentElement.clientWidth - 8) left = hr.left + window.scrollX + x - tw - 14;
+    let top = hr.top + window.scrollY + y - th - 10;
+    if (top < window.scrollY + 130) top = hr.top + window.scrollY + y + 16;
+    tip.style.left = left + 'px'; tip.style.top = top + 'px';
+  }
+  const hideTip = () => { tip.style.opacity = '0'; };
+  function tipRow(parent, color, name, value, dashed) {
+    const row = el('div', 'row'), n = el('span', 'name');
+    if (color) { const k = el('i', 'key-line' + (dashed ? ' dash' : '')); k.style.borderColor = color; n.appendChild(k); }
+    n.appendChild(document.createTextNode(name));
+    row.append(el('span', 'val', value), n); parent.appendChild(row);
+  }
+
+  // ---------------- SVG helpers ----------------
+  const NS = 'http://www.w3.org/2000/svg';
+  function svgEl(tag, attrs, parent) { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); if (parent) parent.appendChild(e); return e; }
+  function niceScale(lo, hi, count) {
+    const span = Math.max(hi - lo, Math.abs(hi) * 1e-6, 1e-12), raw = span / count, p = Math.pow(10, Math.floor(Math.log10(raw)));
+    const step = [1, 2, 2.5, 5, 10].map(m => m * p).find(s => s >= raw);
+    return { min: Math.floor(lo / step) * step, max: Math.ceil(hi / step) * step, step };
+  }
+  const topBar = (x, y, w, h, r) => { r = Math.min(r, w / 2, h); return `M${x},${y + h}V${y + r}Q${x},${y} ${x + r},${y}H${x + w - r}Q${x + w},${y} ${x + w},${y + r}V${y + h}Z`; };
+  const emptyState = (node, text) => node.replaceChildren(el('div', 'empty', text));
+
+  // ---------------- line chart ----------------
+  function lineChart(node, series, opts) {
+    const all = series.flatMap(s => s.points);
+    if (!all.length) return emptyState(node, opts.empty);
+    const W = Math.max(300, node.clientWidth), H = opts.height || 260, m = { l: 52, r: 56, t: 14, b: 30 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const t0 = Math.min(...all.map(p => p.t)), t1 = Math.max(...all.map(p => p.t)), span = Math.max(t1 - t0, 3600e3);
+    const vmin = Math.min(...all.map(p => p.v)), vmax = Math.max(...all.map(p => p.v));
+    const sc = opts.fromMin ? niceScale(vmin - (vmax - vmin) * .05, vmax + (vmax - vmin) * .05, 4) : niceScale(0, vmax * 1.05, 4);
+    const X = t => m.l + (t - t0) / span * iw, Y = v => m.t + ih - (v - sc.min) / (sc.max - sc.min) * ih;
+    const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label });
+    for (let v = sc.min; v <= sc.max + 1e-9; v += sc.step) {
+      svgEl('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: v === sc.min ? C.axis : C.grid }, svg);
+      svgEl('text', { x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = opts.yFmt(v);
+    }
+    const ticks = Math.max(2, Math.min(6, Math.floor(iw / 110)));
+    for (let i = 0; i <= ticks; i++) {
+      const t = t0 + span * i / ticks;
+      svgEl('text', { x: X(t), y: H - 8, 'text-anchor': i === 0 ? 'start' : i === ticks ? 'end' : 'middle', class: 'axis-label' }, svg)
+        .textContent = fmtTime(new Date(t), span > 36 * 3600e3 ? { day: 'numeric', month: 'short', hour: '2-digit' } : { hour: '2-digit', minute: '2-digit' });
+    }
+    series.forEach(s => {
+      if (!s.points.length) return;
+      const d = s.points.map((p, i) => (i && !p.gap ? 'L' : 'M') + X(p.t).toFixed(1) + ',' + Y(p.v).toFixed(1)).join('');
+      svgEl('path', { d, fill: 'none', stroke: s.color, 'stroke-width': 2, 'stroke-linejoin': 'round', 'stroke-linecap': 'round', 'stroke-dasharray': s.dash ? '6 5' : 'none' }, svg);
+      const last = s.points[s.points.length - 1];
+      if (opts.noEndLabels) return;
+      svgEl('circle', { cx: X(last.t), cy: Y(last.v), r: 4, fill: s.color, stroke: C.surface, 'stroke-width': 2 }, svg);
+      const lbl = s.labelAbove ? svgEl('text', { x: X(last.t) - 6, y: Y(last.v) - 10, 'text-anchor': 'end', class: 'direct-label' }, svg)
+                               : svgEl('text', { x: X(last.t) + 8, y: Y(last.v) + 4, class: 'direct-label' }, svg);
+      lbl.textContent = opts.yFmt(last.v);
+    });
+    (opts.markers || []).forEach(mk => {
+      if (mk.t < t0 || mk.t > t1) return;
+      const g = svgEl('g', { tabindex: 0, style: 'cursor:pointer' }, svg);
+      svgEl('line', { x1: X(mk.t), x2: X(mk.t), y1: m.t + 8, y2: m.t + ih, stroke: C.pump, 'stroke-width': 1, 'stroke-dasharray': '2 3', opacity: .7 }, g);
+      svgEl('circle', { cx: X(mk.t), cy: m.t + 6, r: 5, fill: C.pump, stroke: C.surface, 'stroke-width': 2 }, g);
+      svgEl('rect', { x: X(mk.t) - 9, y: m.t - 4, width: 18, height: 20, fill: 'transparent' }, g);
+      const on = () => showTip(node, X(mk.t), m.t + 6, mk.tip);
+      g.addEventListener('pointerenter', on); g.addEventListener('focus', on);
+      g.addEventListener('pointerleave', hideTip); g.addEventListener('blur', hideTip);
+      if (mk.onClick) g.addEventListener('click', mk.onClick);
+    });
+    const hair = svgEl('line', { y1: m.t, y2: m.t + ih, stroke: C.muted, opacity: 0 }, svg);
+    const dots = series.map(s => svgEl('circle', { r: 4.5, fill: s.color, stroke: C.surface, 'stroke-width': 2, opacity: 0 }, svg));
+    const hit = svgEl('rect', { x: m.l, y: m.t, width: iw, height: ih, fill: 'transparent', tabindex: 0 }, svg);
+    const times = [...new Set(all.map(p => p.t))].sort((a, b) => a - b);
+    let idx = times.length - 1;
+    function show(t) {
+      hair.setAttribute('x1', X(t)); hair.setAttribute('x2', X(t)); hair.setAttribute('opacity', 1);
+      const rows = [];
+      series.forEach((s, i) => { const p = s.points.find(q => q.t === t); if (p) { dots[i].setAttribute('cx', X(t)); dots[i].setAttribute('cy', Y(p.v)); dots[i].setAttribute('opacity', 1); rows.push([s, p]); } else dots[i].setAttribute('opacity', 0); });
+      showTip(node, X(t), rows.length ? Math.min(...rows.map(r => Y(r[1].v))) : m.t, (tt) => {
+        tt.appendChild(el('div', 't-time', fmtTime(new Date(t), { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })));
+        rows.forEach(([s, p]) => tipRow(tt, s.color, s.name, opts.yFmt(p.v), s.dash));
+      });
+    }
+    hit.addEventListener('pointermove', (e) => {
+      const r = svg.getBoundingClientRect(); if (!r.width) return;
+      const t = t0 + ((e.clientX - r.left) * (W / r.width) - m.l) / iw * span;
+      idx = times.reduce((b, v, i) => Math.abs(v - t) < Math.abs(times[b] - t) ? i : b, 0); show(times[idx]);
+    });
+    hit.addEventListener('pointerleave', () => { hair.setAttribute('opacity', 0); dots.forEach(d => d.setAttribute('opacity', 0)); hideTip(); });
+    hit.addEventListener('focus', () => show(times[idx]));
+    hit.addEventListener('blur', hideTip);
+    hit.addEventListener('keydown', (e) => { if (e.key === 'ArrowLeft') idx = Math.max(0, idx - 1); else if (e.key === 'ArrowRight') idx = Math.min(times.length - 1, idx + 1); else return; e.preventDefault(); show(times[idx]); });
+    node.replaceChildren(svg);
+  }
+
+  // ---------------- column chart ----------------
+  function columnChart(node, items, opts) {
+    if (!items.length) return emptyState(node, opts.empty);
+    const W = Math.max(300, node.clientWidth), H = opts.height || 200, m = { l: 48, r: 8, t: 20, b: 26 };
+    const iw = W - m.l - m.r, ih = H - m.t - m.b;
+    const sc = niceScale(0, Math.max(...items.map(d => d.v)) * 1.08, 4);
+    const slot = iw / items.length, bw = Math.max(2, slot - 2), Y = v => m.t + ih - v / sc.max * ih;
+    const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': opts.label });
+    for (let v = 0; v <= sc.max + 1e-9; v += sc.step) {
+      svgEl('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: v ? C.grid : C.axis }, svg);
+      svgEl('text', { x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = compact(v);
+    }
+    items.forEach((d, i) => {
+      const x = m.l + i * slot + (slot - bw) / 2, h = Math.max(1, ih - (Y(d.v) - m.t));
+      const bar = svgEl('path', { d: topBar(x, Y(d.v), bw, h, 4), fill: d.color || opts.color, tabindex: 0 }, svg);
+      const hitA = svgEl('rect', { x: m.l + i * slot, y: m.t, width: slot, height: ih, fill: 'transparent' }, svg);
+      const enter = () => { bar.setAttribute('fill-opacity', .78); showTip(node, x + bw / 2, Y(d.v), (tt) => { tt.appendChild(el('div', 't-time', d.tip || d.label)); tipRow(tt, d.color || opts.color, opts.unit, opts.fmt(d.v)); if (d.extra) d.extra(tt); }); };
+      const leave = () => { bar.setAttribute('fill-opacity', 1); hideTip(); };
+      [hitA, bar].forEach(n => { n.addEventListener('pointerenter', enter); n.addEventListener('pointerleave', leave); });
+      bar.addEventListener('focus', enter); bar.addEventListener('blur', leave);
+      const xl = opts.xLabel(d, i);
+      if (xl) svgEl('text', { x: x + bw / 2, y: H - 8, 'text-anchor': 'middle', class: 'axis-label' }, svg).textContent = xl;
+    });
+    node.replaceChildren(svg);
+  }
+
+  // ---------------- candlestick chart ----------------
+  function candleChart(node, candles, ev) {
+    if (!candles.length) return emptyState(node, 'เลือกเหตุการณ์จากรายการด้านซ้าย');
+    const W = Math.max(320, node.clientWidth), H = 360, m = { l: 64, r: 16, t: 24, b: 30 };
+    const iw = W - m.l - m.r, volH = 64, gap = 14, ph = H - m.t - m.b - volH - gap;
+    const pts = candles.map(c => ({ t: toDate(c.ts).getTime(), o: c.open, h: c.high, l: c.low, c: c.close, v: c.vol_thb }));
+    const t0 = pts[0].t, t1 = pts[pts.length - 1].t + 60e3, span = Math.max(t1 - t0, 60e3);
+    const lo = Math.min(...pts.map(p => p.l), ev.base_price), hi = Math.max(...pts.map(p => p.h));
+    const sc = niceScale(lo - (hi - lo) * .05, hi + (hi - lo) * .05, 5);
+    const vmax = Math.max(...pts.map(p => p.v)) || 1;
+    const X = t => m.l + (t - t0) / span * iw, Y = p => m.t + ph - (p - sc.min) / (sc.max - sc.min) * ph;
+    const vTop = m.t + ph + gap, VY = v => vTop + volH - v / vmax * volH;
+    const cw = Math.max(1, Math.min(9, iw / (span / 60e3) - 1.5));
+    const svg = svgEl('svg', { viewBox: `0 0 ${W} ${H}`, height: H, role: 'img', 'aria-label': 'กราฟแท่งเทียนของเหตุการณ์ ' + ev.symbol });
+    const sT = toDate(ev.start_ts).getTime(), pT = toDate(ev.peak_ts).getTime();
+    svgEl('rect', { x: X(sT - 5 * 60e3), y: m.t - 6, width: Math.max(4, X(pT + 60e3) - X(sT - 5 * 60e3)), height: ph + 6, fill: 'rgba(255,164,43,.10)', rx: 4 }, svg);
+    for (let v = sc.min; v <= sc.max + 1e-12; v += sc.step) {
+      svgEl('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: C.grid }, svg);
+      svgEl('text', { x: m.l - 8, y: Y(v) + 4, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = price(v);
+    }
+    svgEl('line', { x1: m.l, x2: W - m.r, y1: vTop + volH, y2: vTop + volH, stroke: C.axis }, svg);
+    svgEl('text', { x: m.l - 8, y: vTop + 10, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = 'volume';
+    const baseY = Y(ev.base_price);
+    svgEl('line', { x1: m.l, x2: W - m.r, y1: baseY, y2: baseY, stroke: C.muted, 'stroke-dasharray': '4 4' }, svg);
+    svgEl('text', { x: W - m.r, y: baseY + 14, 'text-anchor': 'end', class: 'axis-label' }, svg).textContent = 'ราคาก่อนพุ่ง ' + price(ev.base_price);
+    const g = svgEl('g', {}, svg);
+    pts.forEach(p => {
+      const x = X(p.t), col = p.c >= p.o ? C.aqua : C.red;
+      svgEl('line', { x1: x + cw / 2, x2: x + cw / 2, y1: Y(p.h), y2: Y(p.l), stroke: col, 'stroke-width': 1 }, g);
+      const upC = p.c >= p.o;
+      svgEl('rect', { x: upC ? x + .5 : x, y: Y(Math.max(p.o, p.c)), width: upC ? Math.max(cw - 1, 1) : cw, height: Math.max(1, Math.abs(Y(p.o) - Y(p.c))),
+                      fill: upC && cw > 3 ? C.surface : col, stroke: upC && cw > 3 ? col : 'none', 'stroke-width': 1, rx: cw > 4 ? 1 : 0 }, g);
+      svgEl('rect', { x, y: VY(p.v), width: cw, height: Math.max(.5, vTop + volH - VY(p.v)), fill: col, opacity: .55 }, g);
+    });
+    const mark = (t, label, color, anchor) => {
+      svgEl('line', { x1: X(t), x2: X(t), y1: m.t - 6, y2: m.t + ph, stroke: color, 'stroke-width': 1.5, 'stroke-dasharray': '3 3' }, svg);
+      svgEl('text', { x: X(t) + (anchor === 'end' ? -4 : 4), y: m.t + 6, 'text-anchor': anchor, class: 'marker-label', fill: color }, svg).textContent = label;
+    };
+    mark(sT, 'เริ่มพุ่ง', C.pump, 'end');
+    mark(pT, 'จุดสูงสุด ' + pct(ev.pump_pct), C.pump, 'start');
+    const ticks = Math.max(2, Math.min(6, Math.floor(iw / 100)));
+    for (let i = 0; i <= ticks; i++) {
+      const t = t0 + span * i / ticks;
+      svgEl('text', { x: X(t), y: H - 8, 'text-anchor': i === 0 ? 'start' : i === ticks ? 'end' : 'middle', class: 'axis-label' }, svg).textContent = fmtTime(new Date(t), { hour: '2-digit', minute: '2-digit' });
+    }
+    const hair = svgEl('line', { y1: m.t, y2: vTop + volH, stroke: C.muted, opacity: 0 }, svg);
+    const hit = svgEl('rect', { x: m.l, y: m.t, width: iw, height: vTop + volH - m.t, fill: 'transparent' }, svg);
+    hit.addEventListener('pointermove', (e) => {
+      const r = svg.getBoundingClientRect(); if (!r.width) return;
+      const t = t0 + ((e.clientX - r.left) * (W / r.width) - m.l) / iw * span;
+      const p = pts.reduce((b, q) => Math.abs(q.t - t) < Math.abs(b.t - t) ? q : b, pts[0]);
+      hair.setAttribute('x1', X(p.t) + cw / 2); hair.setAttribute('x2', X(p.t) + cw / 2); hair.setAttribute('opacity', 1);
+      showTip(node, X(p.t) + cw / 2, Y(p.h), (tt) => {
+        tt.appendChild(el('div', 't-time', fmtTime(new Date(p.t), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })));
+        tipRow(tt, null, 'ปิด', price(p.c)); tipRow(tt, null, 'สูง / ต่ำ', price(p.h) + ' / ' + price(p.l));
+        tipRow(tt, null, 'เทียบก่อนพุ่ง', pct((p.c / ev.base_price - 1) * 100)); tipRow(tt, null, 'volume', compact(p.v) + ' บาท');
+      });
+    });
+    hit.addEventListener('pointerleave', () => { hair.setAttribute('opacity', 0); hideTip(); });
+    node.replaceChildren(svg);
+  }
+
+  function table(node, headers, rows) {
+    const t = el('table', 'data'), thead = el('thead'), tr = el('tr');
+    headers.forEach(h => tr.appendChild(el('th', h.r ? 'r' : '', h.t)));
+    thead.appendChild(tr); t.appendChild(thead);
+    const tb = el('tbody');
+    rows.forEach(r => { const row = el('tr'); r.forEach((c, i) => { const td = el('td', headers[i].r ? 'r' : ''); if (c instanceof Node) td.appendChild(c); else td.textContent = c == null ? '–' : c; row.appendChild(td); }); tb.appendChild(row); });
+    t.appendChild(tb); node.replaceChildren(t);
+  }
+
+  // ---------------- renderers ----------------
+  function renderOverview(o) {
+    $('setupCard').classList.toggle('show', !o.ready);
+    const lastRun = toDate(o.ingest.last_run), lag = lastRun ? (Date.now() - lastRun) / 60000 : Infinity;
+    $('liveDot').className = 'dot' + (lag < 90 ? ' ok' : lag < 360 ? ' stale' : '');
+    $('liveText').textContent = !o.ready ? 'ยังไม่เริ่มเก็บข้อมูล' : 'ดึงข้อมูลล่าสุด ' + ago(lastRun) + ' · ' + nf.format(o.lake.coins) + ' เหรียญ';
+    $('heroRows').textContent = nf.format(o.lake.candles || 0);
+    $('heroCoins').textContent = nf.format(o.lake.coins || 0);
+    const f = toDate(o.lake.first_ts), l = toDate(o.lake.last_ts);
+    $('heroSpan').textContent = f && l ? nf.format(Math.round((l - f) / 864e5)) + ' วัน' : '–';
+    $('heroCand').textContent = nf.format(o.candidates_total || 0);
+    $('stApi').textContent = nf.format(o.ingest.last_run_calls || 0);
+    $('stApiK').textContent = 'API calls รอบล่าสุด · ' + compact(o.ingest.last_run_rows) + ' แท่งใหม่';
+    $('stBronze').textContent = compact(o.lake.bronze_rows);
+    $('stBronzeK').textContent = 'แถว · ' + nf.format(o.lake.bronze_files || 0) + ' ไฟล์';
+    $('stSilver').textContent = compact(o.lake.candles);
+    $('stSilverK').textContent = 'แถว · ตัดซ้ำ ' + compact(o.lake.duplicates);
+    const g = toDate(o.gold.refreshed_at);
+    $('stGold').textContent = g ? ago(g) : '–';
+    $('stGoldK').textContent = g ? `ใช้ ${nf1.format(o.gold.duration_s)} วินาที · ${nf.format(o.gold.events)} เหตุการณ์` : 'ยังไม่เคย refresh';
+    $('stMl').textContent = nf.format(o.models_deployed || 0);
+
+    const e = o.events;
+    $('kEvents').textContent = nf.format(e.events || 0);
+    $('kEventsS').textContent = `ราคา ≥ ${state.min_pump}% และ volume ≥ ${state.min_volx}×`;
+    $('kDump').textContent = e.events ? nf.format(Math.round(e.pump_dumps / e.events * 100)) + '%' : '–';
+    $('kDumpS').textContent = e.events ? `${nf.format(e.pump_dumps)} จาก ${nf.format(e.events)} ครั้ง ร่วงกลับครึ่งหนึ่งใน 60 นาที` : 'เสียกำไรคืนครึ่งหนึ่งใน 60 นาที';
+    $('kPump').textContent = e.avg_pump_pct != null ? pct(e.avg_pump_pct) : '–';
+    $('kPumpS').textContent = e.avg_dump_pct != null ? 'แล้วร่วงจากยอดเฉลี่ย ' + pct(e.avg_dump_pct) : 'จากราคาก่อนเริ่มพุ่ง';
+    $('kTime').textContent = mins(e.median_minutes_to_dump);
+    $('kTop').textContent = o.top_coin && o.top_coin.symbol ? o.top_coin.symbol.replace('_THB', '') : '–';
+    $('kTopS').textContent = o.top_coin && o.top_coin.n ? nf.format(o.top_coin.n) + ' ครั้งในช่วงนี้' : 'ยังไม่พบเหตุการณ์';
+  }
+
+  function renderEvents(list) {
+    const node = $('evList'); node.replaceChildren();
+    $('evCount').textContent = list.length ? `${nf.format(list.length)} รายการ · ล่าสุดอยู่บนสุด · กดเพื่อดูกราฟ` : 'ไม่พบเหตุการณ์ตามเกณฑ์นี้';
+    if (!list.length) { emptyState(node, 'ไม่พบเหตุการณ์ ลองลดเกณฑ์หรือขยายช่วงเวลา'); renderEventDetail(null, []); return; }
+    if (!state.event || !list.find(e => e.event_id === state.event)) state.event = list[0].event_id;
+    list.forEach(ev => {
+      const b = el('button', 'ev'); b.type = 'button'; b.setAttribute('role', 'option');
+      b.setAttribute('aria-selected', String(ev.event_id === state.event));
+      const left = el('div'), sym = el('span', 'sym', ev.symbol.replace('_THB', ''));
+      left.appendChild(sym);
+      if (ev.is_pump_dump) left.appendChild(el('span', 'badge b-dump', 'dump'));
+      if (ev.concurrent_symbols >= 2) left.appendChild(el('span', 'badge b-market', 'ทั้งตลาด'));
+      if (ev.days_since_listing != null && ev.days_since_listing < 90) left.appendChild(el('span', 'badge b-new', 'ใหม่'));
+      b.append(left, el('div', 'pump', pct(ev.pump_pct)),
+        el('div', 'when', fmtTime(toDate(ev.start_ts), { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }) + ' · vol ' + nf.format(Math.round(ev.max_vol_x)) + '×'),
+        el('div', 'dump', ev.dump_pct != null ? 'ร่วง ' + pct(ev.dump_pct) : ''));
+      b.addEventListener('click', () => { state.event = ev.event_id; node.querySelectorAll('.ev').forEach(x => x.setAttribute('aria-selected', String(x === b))); loadEvent(ev); });
+      node.appendChild(b);
+    });
+    loadEvent(list.find(e => e.event_id === state.event));
+  }
+
+  async function loadEvent(ev) {
+    try { renderEventDetail(ev, await getJSON('/api/event_candles?event_id=' + encodeURIComponent(ev.event_id))); }
+    catch (e) { console.error(e); }
+  }
+  function renderEventDetail(ev, candles) {
+    const stats = $('evStats'); stats.replaceChildren();
+    if (!ev) { $('evTitle').textContent = 'กราฟเหตุการณ์'; candleChart($('candleChart'), [], {}); return; }
+    $('evTitle').replaceChildren();
+    const tl = el('button', 'coin-link', ev.symbol + (ev.name ? ' · ' + ev.name : ''));
+    tl.title = 'ดูราคาและรายละเอียดของเหรียญนี้'; tl.addEventListener('click', () => openCoin(ev.symbol, true));
+    $('evTitle').appendChild(tl);
+    $('evSub').textContent = 'แท่งเทียน 1 นาที · ' + fmtTime(toDate(ev.start_ts), { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }) + ' น.';
+    candleChart($('candleChart'), candles, ev);
+    setEventSource(ev);
+    [['ราคาพุ่ง', pct(ev.pump_pct) + ' ใน ' + mins(ev.minutes_to_peak)],
+     ['Volume สูงสุด', nf.format(Math.round(ev.max_vol_x)) + ' เท่าของปกติ'],
+     ['หลังจุดสูงสุด', ev.dump_pct != null ? pct(ev.dump_pct) + (ev.minutes_to_half_retrace != null ? ' · ครึ่งทางใน ' + mins(ev.minutes_to_half_retrace) : '') : '–'],
+     ['คะแนนผิดปกติ', ev.anomaly_score != null ? nf2.format(ev.anomaly_score) + ' / 1' : 'รอโมเดล', 'anomaly']].forEach(([k, v, term]) => {
+      const kd = el('div', 'k', k); if (term) kd.appendChild(infoBtn(term));
+      const d = el('div'); d.append(kd, el('div', 'v num', v)); stats.appendChild(d);
+    });
+  }
+
+  function renderCoins(rows) {
+    const node = $('coinBars'); node.replaceChildren();
+    if (!rows.length) return emptyState(node, 'ไม่พบเหตุการณ์ตามเกณฑ์นี้');
+    const max = rows[0].events;
+    rows.forEach(r => {
+      const row = el('div', 'hbar'), name = el('div', 'name');
+      name.appendChild(document.createTextNode(r.symbol.replace('_THB', '')));
+      (r.tags || []).forEach(t => name.appendChild(el('span', 'badge ' + (t === 'เหรียญใหม่' ? 'b-new' : 'b-illiquid'), t)));
+      const tr = el('div', 'track');
+      const f1 = el('div', 'fill'); f1.style.width = (r.events / max * 100) + '%'; f1.style.position = 'absolute'; f1.style.top = '0';
+      const f2 = el('div', 'fill alt'); f2.style.width = (r.pump_dumps / max * 100) + '%'; f2.style.position = 'absolute'; f2.style.top = '0'; f2.style.height = '6px'; f2.style.marginTop = '4px';
+      tr.append(f1, f2);
+      row.append(name, tr, el('div', 'val', nf.format(r.events) + ' ครั้ง'));
+      row.addEventListener('pointermove', (e) => { const b = row.getBoundingClientRect(); showTip(row, e.clientX - b.left, 0, (tt) => {
+        tt.appendChild(el('div', 't-time', r.symbol + (r.name ? ' · ' + r.name : '')));
+        tipRow(tt, C.blue, 'เหตุการณ์', nf.format(r.events)); tipRow(tt, C.orange, 'ร่วงกลับจริง', nf.format(r.pump_dumps));
+        tipRow(tt, null, 'พุ่งสูงสุด', pct(r.max_pump_pct)); tipRow(tt, null, 'สภาพคล่อง', r.active_share != null ? nf.format(Math.round(r.active_share * 100)) + '% ของนาที' : '–');
+        tipRow(tt, null, 'volume/วัน', compact(r.avg_daily_vol_thb) + ' บาท'); }); });
+      row.addEventListener('pointerleave', hideTip);
+      row.style.cursor = 'pointer'; row.addEventListener('click', () => openCoin(r.symbol, true));
+      node.appendChild(row);
+    });
+  }
+
+  function renderHeatmap(rows) {
+    const node = $('heatmap'); node.replaceChildren();
+    const grid = {}; let max = 0;
+    rows.forEach(r => { grid[r.dow_local + '-' + r.hour_local] = r.n; max = Math.max(max, r.n); });
+    node.appendChild(el('div'));
+    for (let h = 0; h < 24; h++) node.appendChild(el('div', 'hl', h % 3 === 0 ? String(h).padStart(2, '0') : ''));
+    for (let d = 1; d <= 7; d++) {
+      node.appendChild(el('div', null, DAYS_TH[d]));
+      for (let h = 0; h < 24; h++) {
+        const n = grid[d + '-' + h] || 0, c = el('div', 'cell');
+        c.style.background = n ? HEAT[Math.min(HEAT.length - 1, 1 + Math.floor(n / max * (HEAT.length - 2) + 1e-9))] : HEAT[0];
+        c.tabIndex = 0;
+        const show = () => { const b = node.getBoundingClientRect(), cb = c.getBoundingClientRect(); showTip(node, cb.left - b.left + cb.width / 2, cb.top - b.top, (tt) => { tt.appendChild(el('div', 't-time', 'วัน' + DAYS_TH[d].replace('.', '') + ' · ' + String(h).padStart(2, '0') + ':00–' + String(h).padStart(2, '0') + ':59 น.')); tipRow(tt, null, 'เหตุการณ์', nf.format(n)); }); };
+        c.addEventListener('pointerenter', show); c.addEventListener('focus', show);
+        c.addEventListener('pointerleave', hideTip); c.addEventListener('blur', hideTip);
+        node.appendChild(c);
+      }
+    }
+    $('heatMax').textContent = max ? `(สูงสุด ${nf.format(max)} ครั้ง/ช่อง)` : '';
+  }
+
+  function renderMarket(d) {
+    const actual = d.actual.map(r => ({ t: toDate(r.hour_utc).getTime(), v: r.vol_thb }));
+    const currentHour = Math.floor(Date.now() / 3600e3) * 3600e3;
+    const act = actual.filter(p => p.t < currentHour);
+    let fc = d.forecast.map(r => ({ t: toDate(r.target_hour_utc).getTime(), v: r.predicted }));
+    if (act.length && fc.length) fc = [act[act.length - 1]].concat(fc.filter(p => p.t > act[act.length - 1].t));
+    lineChart($('volChart'), [{ name: 'ค่าจริง', color: C.blue, points: act, labelAbove: fc.length > 1 }, { name: 'พยากรณ์', color: C.orange, dash: true, points: fc.length > 1 ? fc : [] }],
+      { label: 'volume รายชั่วโมง', empty: 'ยังไม่มีข้อมูลรายชั่วโมง', yFmt: v => compact(v), height: 260 });
+  }
+  function renderVol(d) {
+    const sel = $('rvSymbol');
+    if (sel.options.length !== d.symbols.length) { sel.replaceChildren(...d.symbols.map(s => { const o = el('option', null, s.replace('_THB', '')); o.value = s; return o; })); }
+    if (d.symbol) sel.value = d.symbol;
+    const currentHour = Math.floor(Date.now() / 3600e3) * 3600e3;
+    const act = d.actual.map(r => ({ t: toDate(r.hour_utc).getTime(), v: r.rv_pct })).filter(p => p.t < currentHour);
+    let fc = d.forecast.map(r => ({ t: toDate(r.target_hour_utc).getTime(), v: r.predicted }));
+    if (act.length && fc.length) fc = [act[act.length - 1]].concat(fc.filter(p => p.t > act[act.length - 1].t));
+    lineChart($('rvChart'), [{ name: 'ค่าจริง', color: C.blue, points: act, labelAbove: fc.length > 1 }, { name: 'พยากรณ์', color: C.orange, dash: true, points: fc.length > 1 ? fc : [] }],
+      { label: 'ความผันผวนรายชั่วโมง', empty: 'ยังไม่มีข้อมูล', yFmt: v => nf1.format(v) + '%', height: 260 });
+  }
+
+  function renderWarnings(rows, models) {
+    const node = $('warnList'); node.replaceChildren();
+    const ew = models.find(m => m.model_name === 'early_warning');
+    if (!rows.length) return emptyState(node, ew ? 'ไม่มีสัญญาณแรกใน 48 ชม. ล่าสุด' : 'โมเดลยังไม่ถูกเทรน (ต้องมีตัวอย่าง pump มากพอ) — รัน bitkub_ml_pipeline_dag หลัง backfill');
+    rows.slice(0, 8).forEach(r => {
+      const row = el('div', 'warn');
+      const a = el('div');
+      a.append(el('div', null, r.symbol.replace('_THB', '') + ' · ' + pct(r.chg_5m_pct) + ' / vol ' + nf.format(Math.round(r.vol_x_5m)) + '×'));
+      a.lastChild.style.fontWeight = '600'; a.lastChild.style.color = 'var(--ink)';
+      a.appendChild(el('div', 'muted', fmtTime(toDate(r.ts), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' น.'));
+      a.lastChild.style.fontSize = '12px';
+      const p = el('div', 'prob'), tr = el('div', 'track'), f = el('div', 'fill');
+      f.style.width = Math.round(r.probability * 100) + '%'; tr.appendChild(f);
+      p.append(tr, el('span', 'num', nf.format(Math.round(r.probability * 100)) + '%'));
+      p.title = 'โอกาสที่โมเดลให้ว่าจะพุ่งถึง +10% ใน 1 ชม.';
+      const oc = r.outcome === 'pump' ? ['o-pump', 'พุ่งต่อจริง'] : r.outcome === 'ไม่พุ่งต่อ' ? ['o-no', 'ไม่พุ่งต่อ'] : ['o-wait', 'กำลังติดตาม'];
+      row.append(a, p, el('div', 'outcome ' + oc[0], oc[1]));
+      node.appendChild(row);
+    });
+    if (rows.length > 8) node.appendChild(el('div', 'muted', `แสดง 8 จาก ${nf.format(rows.length)} สัญญาณล่าสุด`)).style.cssText = 'font-size:12px;padding:6px 12px';
+  }
+
+  const MODEL_TH = { volume_forecast: 'พยากรณ์ volume ตลาด', volatility_forecast: 'พยากรณ์ความผันผวน', early_warning: 'Early warning',
+                     direction_experiment: 'ทายทิศทางราคา 15 นาที (ทดลอง)', anomaly_scoring: 'คะแนนความผิดปกติ (Isolation Forest)' };
+  function renderModels(rows) {
+    const node = $('modelTable');
+    if (!rows.length) { emptyState(node, 'ยังไม่มีผลโมเดล — รัน bitkub_ml_pipeline_dag'); $('dirCallout').style.display = 'none'; return; }
+    const fmtV = (m, v) => v == null ? '–' : m.metric === 'MAPE' || m.metric === 'accuracy' ? nf1.format(v) + '%' : m.metric === 'AUC' ? nf2.format(v) : m.metric === 'RMSE' ? nf2.format(v) : nf.format(v);
+    table(node, [{ t: 'โมเดล' }, { t: 'ตัววัด' }, { t: 'โมเดล', r: 1 }, { t: 'Baseline', r: 1 }, { t: 'สถานะ' }],
+      rows.map(m => {
+        const st = el('span', 'pill ' + (m.deployed_value != null ? 'ok' : 'no'), m.model_name === 'direction_experiment' ? 'ทดลองเท่านั้น' : m.deployed_value != null ? 'ใช้งานอยู่' : 'ยังไม่ผ่าน');
+        let better = '';
+        if (m.baseline != null && m.value != null) {
+          const gain = m.higher_is_better ? (m.value - m.baseline) : (m.baseline - m.value);
+          better = gain > 0 ? ' ✓' : '';
+        }
+        const metricCell = el('span', null, m.metric + (m.higher_is_better ? ' (สูง=ดี)' : m.metric === 'events_scored' ? '' : ' (ต่ำ=ดี)'));
+        if (GLOSSARY[m.metric]) metricCell.appendChild(infoBtn(m.metric));
+        return [MODEL_TH[m.model_name] || m.model_name, metricCell, fmtV(m, m.value) + better, fmtV(m, m.baseline), st];
+      }));
+    const dir = rows.find(m => m.model_name === 'direction_experiment');
+    const box = $('dirCallout');
+    if (dir && dir.extra && dir.extra.avg_return_net_pct != null) {
+      box.style.display = '';
+      box.replaceChildren();
+      const b1 = el('b', null, 'ทายทิศทางถูก ' + nf1.format(dir.value) + '%');
+      box.append(b1, document.createTextNode(` (ทายมั่ว ${nf1.format(dir.baseline)}%) ดูเหมือนดี แต่ถ้าซื้อตามโมเดล ${nf.format(dir.extra.trades)} ครั้ง ได้เฉลี่ย ${(dir.extra.avg_return_gross_pct > 0 ? '+' : '') + nf2.format(dir.extra.avg_return_gross_pct)}% ต่อครั้ง หักค่าธรรมเนียมซื้อขาย ${nf1.format(dir.extra.fee_round_trip_pct)}% แล้วเหลือ `),
+        el('b', null, (dir.extra.avg_return_net_pct > 0 ? '+' : '') + nf2.format(dir.extra.avg_return_net_pct) + '% ต่อครั้ง'),
+        document.createTextNode(' — ความแม่นส่วนใหญ่มาจากราคาเด้งระหว่างราคาเสนอซื้อ/ขาย (bid-ask bounce) ซึ่งเอาไปทำกำไรจริงไม่ได้'));
+    } else box.style.display = 'none';
+  }
+
+  function renderTicker(d) {
+    $('tickerSub').textContent = 'เหรียญที่ขึ้นหรือลงแรงที่สุดใน 24 ชม. · snapshot ' + (d.snapshot_at ? ago(toDate(d.snapshot_at)) : '–') + ' · ★ = อยู่ในรายการที่ระบบเฝ้าดู';
+    const mk = (rows) => rows.map(r => [(r.tracked ? '★ ' : '') + r.symbol.replace('_THB', ''), price(r.last),
+      (() => { const s = el('span', r.percent_change >= 0 ? 'up-t' : 'down-t', pct(r.percent_change)); s.style.fontWeight = '600'; return s; })(), compact(r.volume_thb_24h)]);
+    const H = [{ t: 'เหรียญ' }, { t: 'ราคา (บาท)', r: 1 }, { t: '24 ชม.', r: 1 }, { t: 'Volume (บาท)', r: 1 }];
+    d.gainers.length ? table($('gainers'), H, mk(d.gainers)) : emptyState($('gainers'), 'ยังไม่มีข้อมูล');
+    d.losers.length ? table($('losers'), H, mk(d.losers)) : emptyState($('losers'), 'ยังไม่มีข้อมูล');
+  }
+
+  function renderPipeline(d) {
+    const items = d.runs.map(r => ({ label: fmtTime(toDate(r.run_at), { hour: '2-digit', minute: '2-digit' }), v: r.rows,
+      tip: fmtTime(toDate(r.run_at), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + (r.backfill ? ' · backfill' : ''),
+      color: r.backfill ? C.orange : C.blue,
+      extra: (tt) => { tipRow(tt, null, 'เหรียญ', nf.format(r.coins)); tipRow(tt, null, 'API calls', nf.format(r.calls)); tipRow(tt, null, 'ใช้เวลา', nf1.format(r.duration_ms / 1000) + ' วินาที'); } }));
+    columnChart($('runChart'), items, { color: C.blue, unit: 'แท่งใหม่', fmt: v => nf.format(v), label: 'แท่งเทียนใหม่ต่อรอบ', empty: 'ยังไม่มีการดึงข้อมูล',
+      xLabel: (d, i) => i % 3 === 0 ? d.label : '' });
+    const node = $('dqBars'); node.replaceChildren();
+    if (!d.dq.length) return emptyState(node, 'ยังไม่มีข้อมูลใน silver');
+    const rows = d.dq.slice(0, 6).concat(d.dq.length > 12 ? d.dq.slice(-6) : d.dq.slice(6));
+    rows.forEach((r, i) => {
+      if (i === 6 && d.dq.length > 12) node.appendChild(el('div', 'muted', '…')).style.fontSize = '12px';
+      const row = el('div', 'hbar'), tr = el('div', 'track'), f = el('div', 'fill');
+      f.style.width = Math.round(r.active_share * 100) + '%'; if (r.active_share < 0.5) f.style.background = '#5a5a5a';
+      tr.appendChild(f);
+      row.append(el('div', 'name', r.symbol.replace('_THB', '')), tr, el('div', 'val', nf.format(Math.round(r.active_share * 100)) + '%'));
+      row.title = `${nf.format(r.candles)} แท่ง · ตัดซ้ำ ${nf.format(r.duplicates)}`;
+      node.appendChild(row);
+    });
+  }
+
+  // ---------------- คำอธิบายศัพท์ (ⓘ) ----------------
+  const GLOSSARY = {
+    pump: ['Pump & Dump', 'การปั่นราคา: กลุ่มคนซื้อพร้อมกันจนราคาพุ่ง (pump) แล้วเทขายทำกำไรจนราคาร่วงกลับ (dump) คนที่ซื้อตามทีหลังมักขาดทุน ระบบนับเป็น "เหตุการณ์น่าสงสัย" เมื่อราคาและ volume ผ่านเกณฑ์ที่เลือก'],
+    dump: ['ร่วงกลับจริง', 'หลังจุดสูงสุด ราคาเสียกำไรที่พุ่งขึ้นมาคืนอย่างน้อยครึ่งหนึ่งภายใน 60 นาที ยิ่ง % สูง ยิ่งแปลว่าการพุ่งส่วนใหญ่ไม่ยั่งยืน'],
+    pumppct: ['ราคาพุ่ง (%)', 'ราคาขึ้นจากราคาก่อนเริ่มพุ่ง (ราคาเปิดเมื่อ 5 นาทีก่อนสัญญาณแรก) ถึงจุดสูงสุด'],
+    volx: ['Volume ×', 'มูลค่าซื้อขาย 5 นาทีล่าสุดเทียบกับค่าปกติ (เฉลี่ยต่อนาทีใน 7 วันก่อนหน้า) เช่น 10× = ซื้อขายมากกว่าปกติ 10 เท่า'],
+    market: ['เกิดพร้อมกันทั้งตลาด', 'มีเหรียญอื่นตั้งแต่ 2 เหรียญขึ้นไปพุ่งในช่วง ±10 นาทีเดียวกัน มักมาจากข่าวหรือ BTC เคลื่อนไหว ไม่ใช่การปั่นเหรียญเดียว'],
+    timedump: ['เวลาก่อนร่วงกลับ', 'ค่ากลาง (median) ของเวลาตั้งแต่จุดสูงสุด จนราคาเสียกำไรคืนครึ่งหนึ่ง'],
+    liquidity: ['สภาพคล่อง', '% ของนาทีที่มีการซื้อขายเกิดขึ้นจริง เหรียญที่เงียบ (ต่ำกว่า 50%) ใช้เงินไม่มากก็ดันราคาได้ จึงปั่นง่ายกว่า'],
+    volatility: ['ความผันผวน', 'ราคาแกว่งขึ้นลงแรงแค่ไหนในหนึ่งชั่วโมง (realized volatility คำนวณจากผลตอบแทนรายนาทีรวมกัน) หน่วยเป็น %'],
+    bronze: ['Bronze', 'ชั้นข้อมูลดิบ: แท่งเทียนตามที่ได้จาก Bitkub API ไม่แก้ไขอะไร เก็บไว้เผื่อต้องคำนวณใหม่'],
+    silver: ['Silver', 'ชั้นข้อมูลที่คลีนแล้ว: ตัดแถวซ้ำ และเพิ่ม feature รายนาที เช่น % เปลี่ยนใน 5 นาที, volume เทียบค่าปกติ'],
+    gold: ['Gold', 'ชั้นตารางสรุปพร้อมใช้: เหตุการณ์น่าสงสัย, สรุปรายชั่วโมง, สถิติรายเหรียญ ส่งเข้า Postgres ให้หน้าเว็บนี้'],
+    baseline: ['Baseline', 'วิธีเดาง่ายๆ ที่ใช้เทียบ เช่น "ชั่วโมงหน้าเท่ากับชั่วโมงนี้" โมเดลต้องชนะ baseline และโมเดลเดิมก่อน จึงจะถูกนำไปใช้งาน'],
+    MAPE: ['MAPE', 'ทายคลาดเคลื่อนเฉลี่ยกี่ % ของค่าจริง ยิ่งต่ำยิ่งดี'],
+    RMSE: ['RMSE', 'ค่าคลาดเคลื่อนเฉลี่ย (หน่วยเดียวกับสิ่งที่ทาย) ที่ลงโทษการทายพลาดมากๆ หนักกว่า ยิ่งต่ำยิ่งดี'],
+    AUC: ['AUC', 'ความสามารถในการแยก "จะพุ่งต่อ" กับ "ไม่พุ่งต่อ" 0.5 = เดามั่ว, 1.0 = แยกได้สมบูรณ์'],
+    accuracy: ['Accuracy', '% ที่ทายถูก ต้องเทียบกับ baseline เสมอ เพราะถ้าคำตอบส่วนใหญ่เป็นแบบเดียว การทายแบบเดียวตลอดก็ได้ % สูงแล้ว'],
+    anomaly: ['คะแนนความผิดปกติ', 'จากโมเดล Isolation Forest ช่วง 0–1 ยิ่งใกล้ 1 ยิ่งต่างจากเหตุการณ์ทั่วไป (เช่น พุ่งแรงกว่า, volume สูงผิดปกติ, เหรียญเงียบมาก)'],
+    earlywarning: ['Early warning', 'เมื่อเห็นสัญญาณแรก (ราคา +3% และ volume 3 เท่าใน 5 นาที) โมเดลจะประเมินโอกาสที่ราคาพุ่งต่อถึง +10% ภายใน 1 ชั่วโมง'],
+    candle: ['แท่งเทียน', '1 แท่ง = 1 นาที ขอบบน/ล่างของตัวแท่ง = ราคาเปิดและปิด เส้นไส้ = ราคาสูงสุดและต่ำสุดในนาทีนั้น แท่งกลวง = ราคาปิดสูงกว่าเปิด แท่งทึบ = ต่ำกว่า'],
+    heatmap: ['Heatmap', 'แต่ละช่อง = 1 ชั่วโมงของวันนั้น (เวลาไทย) ยิ่งสว่างยิ่งเกิดเหตุการณ์บ่อย ใช้ดูว่าการพุ่งแบบนี้มักเกิดช่วงไหน'],
+    correlation: ['ค่าสหสัมพันธ์ (correlation)', 'วัดว่าราคาสองเหรียญขึ้นลงพร้อมกันแค่ไหนในแต่ละชั่วโมง +1 = ไปทางเดียวกันเสมอ, 0 = ไม่เกี่ยวกัน, −1 = สวนทางกันเสมอ (สัมพันธ์กันไม่ได้แปลว่าเหรียญหนึ่งเป็นสาเหตุของอีกเหรียญ)'],
+    backtest: ['Backtest', 'เอาโมเดลไปทายข้อมูลช่วงท้ายสุด (20%) ที่ไม่ได้ใช้ตอนเทรน แล้ววางเทียบกับค่าจริง ถ้าเส้นทายใกล้ค่าจริงมากกว่าเส้น baseline แปลว่าโมเดลมีประโยชน์'],
+    sparkline: ['กราฟ 7 วัน', 'ราคาปิดทุก 4 ชั่วโมงย้อนหลัง 7 วัน เขียว = ราคาปลายช่วงสูงกว่าต้นช่วง แดง = ต่ำกว่า'],
+  };
+  function infoBtn(term) {
+    const b = el('button', 'info', 'i'); b.type = 'button'; b.dataset.term = term; b.setAttribute('aria-label', 'คำอธิบาย ' + (GLOSSARY[term] || [term])[0]);
+    return b;
+  }
+  function showGlossary(btn) {
+    const g = GLOSSARY[btn.dataset.term]; if (!g) return;
+    const host = document.body, r = btn.getBoundingClientRect(), hb = host.getBoundingClientRect();
+    showTip(host, r.left - hb.left + r.width / 2, r.top - hb.top, (tt) => { tt.appendChild(el('div', 'g-term', g[0])); tt.appendChild(el('div', null, g[1])); }, true);
+  }
+  document.addEventListener('pointerover', (e) => { const b = e.target.closest && e.target.closest('.info'); if (b) showGlossary(b); });
+  document.addEventListener('pointerout', (e) => { const b = e.target.closest && e.target.closest('.info'); if (b && !b.contains(e.relatedTarget)) hideTip(); });
+  document.addEventListener('focusin', (e) => { if (e.target.classList && e.target.classList.contains('info')) showGlossary(e.target); });
+  document.addEventListener('focusout', (e) => { if (e.target.classList && e.target.classList.contains('info')) hideTip(); });
+  document.addEventListener('click', (e) => { const b = e.target.closest && e.target.closest('.info'); if (b) { e.preventDefault(); e.stopPropagation(); showGlossary(b); } }, true);
+
+  // ---------------- ตารางราคา ----------------
+  const priceState = { sort: 'volume_thb_24h', dir: -1, q: '', page: 1 };
+  const PAGE_SIZE = 15;
+  function sparkline(values) {
+    const W = 120, H = 32, s = svgEl('svg', { width: W, height: H, viewBox: `0 0 ${W} ${H}`, class: 'spark', 'aria-hidden': 'true' });
+    const v = (values || []).filter(x => x != null);
+    if (v.length < 2) return s;
+    const lo = Math.min(...v), hi = Math.max(...v), span = hi - lo || 1;
+    const d = v.map((x, i) => (i ? 'L' : 'M') + (i / (v.length - 1) * (W - 4) + 2).toFixed(1) + ',' + (H - 3 - (x - lo) / span * (H - 6)).toFixed(1)).join('');
+    svgEl('path', { d, fill: 'none', stroke: v[v.length - 1] >= v[0] ? '#3fcf8e' : '#f3727f', 'stroke-width': 1.6, 'stroke-linejoin': 'round' }, s);
+    return s;
+  }
+  function renderPrices(d) {
+    const node = $('priceTable');
+    if (!d.coins.length) { emptyState(node, 'ยังไม่มีข้อมูลราคา — รอ bitkub_ingestion_dag'); return; }
+    $('pricesSub').textContent = 'ราคาล่าสุดของทุกเหรียญที่ระบบเฝ้าดู · snapshot ' + (d.snapshot_at ? ago(toDate(d.snapshot_at)) : '–') + ' · กดที่เหรียญเพื่อดูกราฟและรายละเอียด';
+    const q = priceState.q.trim().toLowerCase();
+    let rows = d.coins.filter(c => !q || c.symbol.toLowerCase().includes(q) || (c.name || '').toLowerCase().includes(q));
+    const k = priceState.sort, dir = priceState.dir;
+    rows = rows.slice().sort((a, b) => {
+      const x = a[k], y = b[k];
+      if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1;
+      return (typeof x === 'string' ? x.localeCompare(y) : x - y) * dir;
+    });
+    const cols = [['#', null, ''], ['เหรียญ', 'symbol', ''], ['ราคา (บาท)', 'last', 'r'], ['24 ชม.', 'percent_change', 'r'], ['Volume 24 ชม.', 'volume_thb_24h', 'r'],
+                  ['7 วัน', null, 'r', 'sparkline'], ['สภาพคล่อง', 'active_share', 'r', 'liquidity'], ['เหตุการณ์ 90 วัน', 'events_90d', 'r', 'pump']];
+    const t = el('table', 'data prices'), thead = el('thead'), htr = el('tr');
+    cols.forEach(([label, key, cls, term]) => {
+      const th = el('th', (cls || '') + (key ? ' sortable' : ''), label);
+      if (term) th.appendChild(infoBtn(term));
+      if (key) {
+        th.tabIndex = 0;
+        th.setAttribute('aria-sort', key === k ? (dir > 0 ? 'ascending' : 'descending') : 'none');
+        const act = () => { if (priceState.sort === key) priceState.dir *= -1; else { priceState.sort = key; priceState.dir = key === 'symbol' ? 1 : -1; } priceState.page = 1; renderPrices(cache.prices); };
+        th.addEventListener('click', (e) => { if (!e.target.closest('.info')) act(); });
+        th.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+      }
+      htr.appendChild(th);
+    });
+    thead.appendChild(htr); t.appendChild(thead);
+    const tb = el('tbody');
+    // แบ่งหน้า: หน้าละ 15 รายการ
+    const pages = Math.max(1, Math.ceil(rows.length / PAGE_SIZE));
+    priceState.page = Math.min(Math.max(1, priceState.page), pages);
+    const start = (priceState.page - 1) * PAGE_SIZE, pageRows = rows.slice(start, start + PAGE_SIZE);
+    pageRows.forEach((c, i) => {
+      const tr = el('tr' + ''); tr.tabIndex = 0; if (c.symbol === state.coin) tr.className = 'sel';
+      const cell = el('div', 'coin-cell'); cell.append(el('span', 'sym', c.symbol.replace('_THB', '')), el('span', 'nm', c.name || ''));
+      const chg = el('span', c.percent_change >= 0 ? 'up-t' : 'down-t', c.percent_change != null ? pct(c.percent_change) : '–'); chg.style.fontWeight = '700';
+      const liq = el('span', 'liq'); const lt = el('span', 'track'), lf = el('span', 'fill');
+      lf.style.width = Math.round((c.active_share || 0) * 100) + '%'; lt.appendChild(lf);
+      liq.append(el('span', 'num', c.active_share != null ? nf.format(Math.round(c.active_share * 100)) + '%' : '–'), lt);
+      const vals = [el('span', 'rank', String(start + i + 1)), cell, price(c.last), chg, compact(c.volume_thb_24h), sparkline(c.spark), liq,
+                    c.events_90d ? nf.format(c.events_90d) + ' ครั้ง' : '–'];
+      vals.forEach((v, j) => { const td = el('td', cols[j][2] || ''); if (v instanceof Node) td.appendChild(v); else td.textContent = v; tr.appendChild(td); });
+      const open = () => openCoin(c.symbol, true);
+      tr.addEventListener('click', open);
+      tr.addEventListener('keydown', (e) => { if (e.key === 'Enter') open(); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb);
+    node.replaceChildren(rows.length ? t : el('div', 'empty', 'ไม่พบเหรียญที่ค้นหา'));
+    $('priceFoot').textContent = rows.length
+      ? `แสดง ${nf.format(start + 1)}–${nf.format(start + pageRows.length)} จาก ${nf.format(rows.length)} เหรียญ` + (q ? ` (ค้นหาจาก ${nf.format(d.coins.length)})` : '') + ' · กดหัวคอลัมน์เพื่อเรียงลำดับ'
+      : '';
+    renderPager(pages);
+  }
+  function renderPager(pages) {
+    const nav = $('pricePager'); nav.replaceChildren();
+    if (pages <= 1) return;
+    const cur = priceState.page;
+    const go = (n) => { priceState.page = n; renderPrices(cache.prices); document.getElementById('priceTable').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); };
+    const btn = (label, n, opts = {}) => {
+      const b = el('button', null, label); b.type = 'button';
+      if (opts.aria) b.setAttribute('aria-label', opts.aria);
+      if (n === cur && !opts.nav) b.setAttribute('aria-current', 'page');
+      if (opts.disabled) b.disabled = true; else b.addEventListener('click', () => go(n));
+      return b;
+    };
+    nav.appendChild(btn('‹', cur - 1, { nav: true, disabled: cur === 1, aria: 'หน้าก่อนหน้า' }));
+    // เลขหน้า: แสดงหน้าแรก หน้าสุดท้าย และรอบหน้าปัจจุบัน ที่เหลือย่อเป็น …
+    const nums = pages <= 7
+      ? Array.from({ length: pages }, (_, i) => i + 1)
+      : [...new Set([1, pages, cur - 1, cur, cur + 1].filter(n => n >= 1 && n <= pages))].sort((a, b) => a - b);
+    nums.forEach((n, i) => {
+      if (i && n - nums[i - 1] > 1) nav.appendChild(el('span', 'gap', '…'));
+      nav.appendChild(btn(String(n), n, { aria: 'หน้า ' + n }));
+    });
+    nav.appendChild(btn('›', cur + 1, { nav: true, disabled: cur === pages, aria: 'หน้าถัดไป' }));
+  }
+  $('priceSearch').addEventListener('input', (e) => { priceState.q = e.target.value; priceState.page = 1; if (cache.prices) renderPrices(cache.prices); });
+
+  // ---------------- รายละเอียดเหรียญ ----------------
+  state.coinDays = state.coinDays || 90;
+  async function openCoin(symbol, scroll) {
+    state.coin = symbol;
+    const card = $('coinDetail'); card.hidden = false;
+    if (cache.prices) renderPrices(cache.prices);
+    if (scroll) document.getElementById('prices').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    card.classList.add('loading');
+    try { renderCoin(await getJSON(`/api/coin?symbol=${encodeURIComponent(symbol)}&days=${state.coinDays}`)); }
+    catch (e) { console.error(e); }
+    finally { card.classList.remove('loading'); }
+  }
+  function renderCoin(d) {
+    if (!d.found) { $('coinDetail').hidden = true; return; }
+    const i = d.info;
+    $('cdRank').textContent = i.rank_24h ? `อันดับ ${i.rank_24h} ตาม volume 24 ชม.` : 'เหรียญที่เฝ้าดู';
+    $('cdSym').textContent = i.symbol.replace('_THB', '');
+    $('cdCsv').href = `/api/export/coin.csv?symbol=${encodeURIComponent(i.symbol)}&days=${state.coinDays}`;
+    $('cdName').textContent = (i.name || '') + ' · ' + i.symbol;
+    $('cdPrice').textContent = price(i.last) + ' ฿';
+    const chg = $('cdChg'); chg.textContent = i.percent_change != null ? pct(i.percent_change) + ' (24 ชม.)' : '';
+    chg.className = 'chg ' + ((i.percent_change || 0) >= 0 ? 'up' : 'down');
+    document.querySelectorAll('#cdRange button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.cd === state.coinDays)));
+    const listed = toDate(i.listed_at);
+    const stats = [
+      ['สูง / ต่ำ 24 ชม.', price(i.high_24h) + ' / ' + price(i.low_24h)],
+      ['Volume 24 ชม.', compact(i.volume_thb_24h) + ' ฿'],
+      ['Volume เฉลี่ย/วัน (30 วัน)', compact(i.avg_daily_vol_thb_30d) + ' ฿'],
+      ['สภาพคล่อง', i.active_share != null ? nf.format(Math.round(i.active_share * 100)) + '% ของนาที' : '–', 'liquidity'],
+      ['ความผันผวนเฉลี่ย (30 วัน)', d.avg_rv_30d != null ? nf2.format(d.avg_rv_30d) + '% / ชม.' : '–', 'volatility'],
+      ['เปิดเทรดบน Bitkub', listed ? fmtTime(listed, { day: 'numeric', month: 'short', year: 'numeric' }) : '–'],
+    ];
+    const box = $('cdStats'); box.replaceChildren();
+    stats.forEach(([k, v, term]) => { const kd = el('div', 'k', k); if (term) kd.appendChild(infoBtn(term)); const c = el('div'); c.append(kd, el('div', 'v', v)); box.appendChild(c); });
+
+    const pts = d.series.map(r => ({ t: toDate(r.t).getTime(), v: r.close }));
+    const markers = d.events.map(ev => ({
+      t: toDate(ev.start_ts).getTime(),
+      tip: (tt) => { tt.appendChild(el('div', 't-time', fmtTime(toDate(ev.start_ts), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) + ' น.'));
+                     tipRow(tt, null, 'ราคาพุ่ง', pct(ev.pump_pct)); tipRow(tt, null, 'หลังจุดสูงสุด', pct(ev.dump_pct)); tipRow(tt, null, 'Volume', nf.format(Math.round(ev.max_vol_x)) + '×');
+                     tt.appendChild(el('div', 't-time', 'กดเพื่อดูกราฟแท่งเทียน')); },
+      onClick: () => goToEvent(ev.event_id),
+    }));
+    lineChart($('cdChart'), [{ name: 'ราคาปิด', color: C.blue, points: pts }],
+      { label: 'กราฟราคา ' + i.symbol, empty: 'ยังไม่มีข้อมูลราคาในช่วงนี้', yFmt: price, height: 300, fromMin: true, markers });
+
+    $('cdEvSub').textContent = d.events.length ? `${nf.format(d.events.length)} ครั้งใน ${state.coinDays} วัน (ราคา ≥ 10%, volume ≥ 10×) · กดเพื่อดูกราฟแท่งเทียน` : `ไม่พบเหตุการณ์น่าสงสัยใน ${state.coinDays} วัน`;
+    const evNode = $('cdEvents');
+    if (!d.events.length) { evNode.replaceChildren(); return; }
+    const t = el('table', 'data'), thead = el('thead'), htr = el('tr');
+    [['เวลา (เวลาไทย)', ''], ['ราคาพุ่ง', 'r'], ['หลังจุดสูงสุด', 'r'], ['Volume', 'r'], ['ป้าย', ''], ['', 'r']].forEach(([h, c]) => htr.appendChild(el('th', c, h)));
+    thead.appendChild(htr); t.appendChild(thead);
+    const tb = el('tbody');
+    d.events.slice(0, 12).forEach(ev => {
+      const tr = el('tr'), tags = el('span');
+      if (ev.is_pump_dump) tags.appendChild(el('span', 'badge b-dump', 'dump'));
+      if (ev.concurrent_symbols >= 2) tags.appendChild(el('span', 'badge b-market', 'ทั้งตลาด'));
+      const go = el('button', 'link-btn', 'ดูกราฟ'); go.addEventListener('click', () => goToEvent(ev.event_id));
+      [fmtTime(toDate(ev.start_ts), { day: 'numeric', month: 'short', year: '2-digit', hour: '2-digit', minute: '2-digit' }), pct(ev.pump_pct), pct(ev.dump_pct),
+       nf.format(Math.round(ev.max_vol_x)) + '×', tags, go].forEach((v, j) => { const td = el('td', j >= 1 && j <= 3 || j === 5 ? 'r' : ''); if (v instanceof Node) td.appendChild(v); else td.textContent = v; tr.appendChild(td); });
+      tb.appendChild(tr);
+    });
+    t.appendChild(tb); evNode.replaceChildren(t);
+  }
+  async function goToEvent(eventId) {
+    // ตั้งตัวกรองให้กว้างพอที่เหตุการณ์นี้จะอยู่ในรายการ แล้วเลื่อนไปที่กราฟแท่งเทียน
+    Object.assign(state, { days: 0, min_pump: 10, min_volx: 10, single: false, event: eventId });
+    $('fPump').value = 10; $('fVol').value = 10; $('fSingle').checked = false;
+    $('fPumpV').textContent = '10%'; $('fVolV').textContent = '10×';
+    document.querySelectorAll('#filters .segmented button').forEach(x => x.setAttribute('aria-pressed', String(+x.dataset.days === 0)));
+    saveState();
+    await load();
+    const target = document.querySelector('.ev[aria-selected="true"]');
+    document.getElementById('explorer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (target) target.scrollIntoView({ block: 'nearest' });
+  }
+  document.querySelectorAll('#cdRange button').forEach(b => b.addEventListener('click', () => { state.coinDays = +b.dataset.cd; saveState(); if (state.coin) openCoin(state.coin); }));
+  $('cdClose').addEventListener('click', () => { $('coinDetail').hidden = true; state.coin = null; if (cache.prices) renderPrices(cache.prices); });
+
+  // ---------------- ความสัมพันธ์ระหว่างเหรียญ ----------------
+  state.corrDays = state.corrDays || 30;
+  function mixHex(a, b, t) {
+    const pa = [1, 3, 5].map(i => parseInt(a.slice(i, i + 2), 16)), pb = [1, 3, 5].map(i => parseInt(b.slice(i, i + 2), 16));
+    return 'rgb(' + pa.map((v, i) => Math.round(v + (pb[i] - v) * t)).join(',') + ')';
+  }
+  const corrColor = (c) => c == null ? '#242424' : c >= 0 ? mixHex('#383835', '#86b6ef', Math.min(1, c)) : mixHex('#383835', '#e66767', Math.min(1, -c));
+  function renderCorrelation(d) {
+    document.querySelectorAll('#corrRange button').forEach(b => b.setAttribute('aria-pressed', String(+b.dataset.cdays === state.corrDays)));
+    const grid = $('corrGrid'); grid.replaceChildren();
+    const syms = d.symbols || [];
+    if (!syms.length) { emptyState(grid, 'ยังไม่มีข้อมูลรายชั่วโมง'); } else {
+      const val = {};
+      d.matrix.forEach(r => { val[r.a + '|' + r.b] = r; val[r.b + '|' + r.a] = r; });
+      const short = s => s.replace('_THB', '');
+      grid.style.gridTemplateColumns = `56px repeat(${syms.length}, minmax(0, 1fr))`;
+      grid.appendChild(el('div'));
+      syms.forEach(s => grid.appendChild(el('div', 'cl', short(s))));
+      syms.forEach(a => {
+        grid.appendChild(el('div', 'rl', short(a)));
+        syms.forEach(b => {
+          const r = a === b ? { c: 1, n: null } : val[a + '|' + b];
+          const c = r ? r.c : null, cell = el('div', 'cc');
+          cell.style.background = corrColor(c);
+          if (c != null && grid.clientWidth > 520) { cell.textContent = nf1.format(c).replace(/^0/, '').replace(/^-0/, '−'); cell.style.color = Math.abs(c) > .55 ? '#0b0b0b' : '#cbcbcb'; }
+          cell.tabIndex = 0;
+          const show = () => { const gb = grid.getBoundingClientRect(), cb = cell.getBoundingClientRect();
+            showTip(grid, cb.left - gb.left + cb.width / 2, cb.top - gb.top, (tt) => { tt.appendChild(el('div', 't-time', short(a) + ' × ' + short(b)));
+              tipRow(tt, null, 'correlation', c == null ? '–' : nf2.format(c)); if (r && r.n) tipRow(tt, null, 'ชั่วโมงที่ใช้', nf.format(r.n)); }); };
+          cell.addEventListener('pointerenter', show); cell.addEventListener('focus', show);
+          cell.addEventListener('pointerleave', hideTip); cell.addEventListener('blur', hideTip);
+          grid.appendChild(cell);
+        });
+      });
+    }
+    const bars = $('btcBars'); bars.replaceChildren();
+    if (!d.btc.length) { emptyState(bars, 'ยังไม่มีข้อมูล'); return; }
+    $('btcSub').textContent = `ค่าสหสัมพันธ์กับ BTC ของ ${nf.format(d.btc.length)} เหรียญ ใน ${d.days} วันล่าสุด · กดเพื่อดูรายละเอียดเหรียญ`;
+    const group = (title, list) => {
+      bars.appendChild(el('div', 'sub-label', title));
+      const box = el('div', 'hbars'); bars.appendChild(box);
+      list.forEach(r => {
+        const row = el('div', 'hbar'), tr = el('div', 'track'), f = el('div', 'fill' + (r.c < 0 ? ' neg' : ''));
+        f.style.width = Math.max(1, Math.abs(r.c) * 100) + '%'; tr.appendChild(f);
+        row.append(el('div', 'name', r.symbol.replace('_THB', '')), tr, el('div', 'val', (r.c > 0 ? '+' : '') + nf2.format(r.c)));
+        row.style.cursor = 'pointer'; row.title = `${nf.format(r.n)} ชั่วโมง`;
+        row.addEventListener('click', () => openCoin(r.symbol, true));
+        box.appendChild(row);
+      });
+    };
+    group('ขยับตาม BTC มากที่สุด', d.btc.slice(0, 8));
+    if (d.btc.length > 8) group('ขยับตาม BTC น้อยที่สุด', d.btc.slice(-Math.min(6, d.btc.length - 8)).reverse());
+  }
+  async function loadCorrelation() {
+    try { cache.corr = await getJSON('/api/correlation?days=' + state.corrDays); renderCorrelation(cache.corr); } catch (e) { console.error(e); }
+  }
+  document.querySelectorAll('#corrRange button').forEach(b => b.addEventListener('click', () => { state.corrDays = +b.dataset.cdays; saveState(); loadCorrelation(); }));
+
+  // ---------------- ประวัติโมเดล ----------------
+  function renderModelHistory(rows) {
+    const node = $('mhGrid'); node.replaceChildren();
+    const by = {};
+    rows.forEach(r => (by[r.model_name] = by[r.model_name] || []).push(r));
+    const names = Object.keys(by);
+    if (!names.length) return emptyState(node, 'ยังไม่มีประวัติ — รัน bitkub_ml_pipeline_dag');
+    names.forEach(n => {
+      const list = by[n], last = list[list.length - 1];
+      const box = el('div', 'mh'), t = el('div', 't');
+      const unit = last.metric === 'MAPE' || last.metric === 'accuracy' ? '%' : '';
+      const fmt = v => (last.metric === 'AUC' ? nf2.format(v) : nf1.format(v)) + unit;
+      t.append(el('span', null, MODEL_TH[n] || n), el('span', null, last.metric + ' · ' + nf.format(list.length) + ' รอบ'));
+      const ch = el('div', 'chart'); box.append(t, ch); node.appendChild(box);
+      const pts = list.map(r => ({ t: toDate(r.run_at).getTime(), v: r.value }));
+      const base = list.filter(r => r.baseline != null).map(r => ({ t: toDate(r.run_at).getTime(), v: r.baseline }));
+      requestAnimationFrame(() => {
+        lineChart(ch, [{ name: 'โมเดล', color: C.orange, points: pts }, { name: 'Baseline', color: '#7c7c7c', dash: true, points: base }],
+          { label: 'ประวัติ ' + n, empty: '–', yFmt: fmt, height: 130, fromMin: true });
+      });
+    });
+  }
+
+  // ---------------- backtest ----------------
+  state.bt = state.bt || 'volume_forecast|MARKET';
+  function renderBacktest(d) {
+    const sel = $('btSelect');
+    const opts = d.options.map(o => o.model_name + '|' + o.symbol);
+    if (sel.options.length !== opts.length) sel.replaceChildren(...d.options.map(o => {
+      const op = el('option', null, o.model_name === 'volume_forecast' ? 'Volume ทั้งตลาด' : 'ความผันผวน · ' + o.symbol.replace('_THB', ''));
+      op.value = o.model_name + '|' + o.symbol; return op; }));
+    sel.value = d.model + '|' + d.symbol;
+    const isVol = d.model === 'volume_forecast';
+    const fmt = isVol ? (v => compact(v)) : (v => nf1.format(v) + '%');
+    const rows = d.rows.slice(-24 * 7);    // แสดง 7 วันล่าสุดของชุดทดสอบ (ตัวเลขสรุปคิดจากชุดทดสอบทั้งหมด)
+    const P = k => rows.filter(r => r[k] != null).map(r => ({ t: toDate(r.hour_utc).getTime(), v: r[k] }));
+    lineChart($('btChart'), [{ name: 'ค่าจริง', color: C.blue, points: P('actual') }, { name: 'โมเดลทาย', color: C.orange, dash: true, points: P('predicted') },
+                             { name: 'Baseline', color: '#7c7c7c', dash: true, points: P('baseline') }],
+      { label: 'backtest', empty: 'ยังไม่มีผล backtest — รัน bitkub_ml_pipeline_dag', yFmt: fmt, height: 260, noEndLabels: true });
+    const err = (k) => { const v = d.rows.filter(r => r[k] != null && r.actual);
+      if (!v.length) return null;
+      return isVol ? v.reduce((a, r) => a + Math.abs(r[k] - r.actual) / r.actual, 0) / v.length * 100
+                   : Math.sqrt(v.reduce((a, r) => a + (r[k] - r.actual) ** 2, 0) / v.length); };
+    const m = err('predicted'), b = err('baseline'), stats = $('btStats'); stats.replaceChildren();
+    const add = (k, v) => { const sp = el('span'); sp.append(document.createTextNode(k + ' '), el('b', null, v)); stats.appendChild(sp); };
+    if (m != null) {
+      add(isVol ? 'MAPE โมเดล' : 'RMSE โมเดล', isVol ? nf1.format(m) + '%' : nf2.format(m));
+      if (b != null) { add('Baseline', isVol ? nf1.format(b) + '%' : nf2.format(b)); add('ดีกว่า baseline', nf1.format((1 - m / b) * 100) + '%'); }
+      add('ชั่วโมงที่ทดสอบ', nf.format(d.rows.length));
+    }
+    if (d.live.length) {
+      const lv = d.live.filter(r => r.actual);
+      const le = isVol ? lv.reduce((a, r) => a + Math.abs(r.predicted - r.actual) / r.actual, 0) / lv.length * 100
+                       : Math.sqrt(lv.reduce((a, r) => a + (r.predicted - r.actual) ** 2, 0) / lv.length);
+      add('ค่าพยากรณ์จริงที่ถึงเวลาแล้ว', nf.format(lv.length) + ' ชม. · ' + (isVol ? 'MAPE ' + nf1.format(le) + '%' : 'RMSE ' + nf2.format(le)));
+    }
+    $('btSub').textContent = 'ผลทายของโมเดลรอบล่าสุดบนช่วงข้อมูลที่โมเดลไม่เคยเห็น' + (rows.length < d.rows.length ? ' (กราฟแสดง 7 วันล่าสุด)' : '');
+  }
+  async function loadBacktest() {
+    const [model, symbol] = state.bt.split('|');
+    try { cache.bt = await getJSON(`/api/backtest?model=${encodeURIComponent(model)}&symbol=${encodeURIComponent(symbol)}`); renderBacktest(cache.bt); } catch (e) { console.error(e); }
+  }
+  $('btSelect').addEventListener('change', (e) => { state.bt = e.target.value; saveState(); loadBacktest(); });
+
+  // ---------------- ลิงก์ข้อมูลต้นทาง ----------------
+  const tvUrl = (symbol, from, to) => `https://api.bitkub.com/tradingview/history?symbol=${encodeURIComponent(symbol)}&resolution=1&from=${Math.floor(from)}&to=${Math.floor(to)}`;
+  (() => { const now = Date.now() / 1000; $('tvLink').href = tvUrl('BTC_THB', now - 3600, now); })();
+  function setEventSource(ev) {
+    const a = $('evSrc'); if (!ev) return;
+    const st = toDate(ev.start_ts).getTime() / 1000, pk = toDate(ev.peak_ts).getTime() / 1000;
+    a.href = tvUrl(ev.symbol, st - 3600, pk + 5400); a.target = '_blank'; a.rel = 'noopener';
+    a.title = 'เปิดแท่งเทียนดิบของช่วงนี้จาก Bitkub (JSON)';
+  }
+
+  // ---------------- ripple ตอนกดปุ่ม ----------------
+  const RIPPLE_SEL = '.btn, .btn-sm, .segmented button, .pager button, .icon-btn, .side-link';
+  const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  document.addEventListener('pointerdown', (e) => {
+    if (reduceMotion || e.button !== 0) return;
+    const b = e.target.closest && e.target.closest(RIPPLE_SEL);
+    if (!b || b.disabled) return;
+    const r = b.getBoundingClientRect(), size = Math.max(r.width, r.height) * 2.2;
+    const dot = document.createElement('span');
+    dot.className = 'ripple';
+    dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+    b.appendChild(dot);
+    dot.addEventListener('animationend', () => dot.remove());
+  });
+
+  // ---------------- ธนบัตรโบกเหมือนธง ----------------
+  document.querySelectorAll('.hero-art .bill').forEach((bill, b) => {
+    const N = 20, w = 200 / N;
+    for (let i = 0; i < N; i++) {
+      const sp = document.createElement('span');
+      sp.style.backgroundPosition = `${-i * w}px 0`;
+      sp.style.animationDelay = `${-(i * 0.09 + b * 0.7)}s`;
+      bill.appendChild(sp);
+    }
+  });
+
+  // ---------------- load ----------------
+  const cache = {};
+  let loading = false;
+  async function load() {
+    if (loading) return; loading = true;
+    $('refreshBtn').classList.add('spin'); $('dash').classList.add('loading');
+    try {
+      const q = qs();
+      // โหลดทุกส่วนพร้อมกัน แต่ถ้า endpoint ไหนพัง ส่วนอื่นยังแสดงได้ตามปกติ
+      const urls = {
+        ov: '/api/overview?' + q, evs: '/api/events?' + q, coins: '/api/coins?' + q, heat: '/api/heatmap?' + q,
+        market: '/api/market?days=7', vol: '/api/volatility?days=3' + (state.rvSymbol ? '&symbol=' + encodeURIComponent(state.rvSymbol) : ''),
+        warns: '/api/early_warnings', models: '/api/models', tick: '/api/ticker', pipe: '/api/pipeline',
+        prices: '/api/prices', mh: '/api/model_history',
+        corr: '/api/correlation?days=' + state.corrDays,
+        bt: '/api/backtest?model=' + encodeURIComponent(state.bt.split('|')[0]) + '&symbol=' + encodeURIComponent(state.bt.split('|')[1]),
+      };
+      const keys = Object.keys(urls);
+      const results = await Promise.allSettled(keys.map(k => getJSON(urls[k])));
+      const failed = [];
+      results.forEach((r, i) => { if (r.status === 'fulfilled') cache[keys[i]] = r.value; else { failed.push(keys[i]); console.error(r.reason); } });
+      renderAll();
+      $('updatedAt').textContent = failed.length ? `โหลดไม่สำเร็จบางส่วน (${failed.length})` : 'อัปเดต ' + fmtTime(new Date(), { hour: '2-digit', minute: '2-digit' });
+    } catch (e) { console.error(e); $('updatedAt').textContent = 'โหลดข้อมูลไม่สำเร็จ'; }
+    finally { loading = false; $('refreshBtn').classList.remove('spin'); $('dash').classList.remove('loading'); }
+  }
+  function renderAll() {
+    const safe = (fn, ...args) => { if (args.some(a => a == null)) return; try { fn(...args); } catch (e) { console.error(e); } };
+    safe(renderOverview, cache.ov); safe(renderEvents, cache.evs); safe(renderCoins, cache.coins); safe(renderHeatmap, cache.heat);
+    safe(renderMarket, cache.market); safe(renderVol, cache.vol); safe(renderWarnings, cache.warns, cache.models || []);
+    safe(renderModels, cache.models); safe(renderTicker, cache.tick); safe(renderPipeline, cache.pipe); safe(renderPrices, cache.prices);
+    safe(renderCorrelation, cache.corr); safe(renderModelHistory, cache.mh); safe(renderBacktest, cache.bt);
+    $('evCsv').href = '/api/export/events.csv?' + qs();
+  }
+
+  // ---------------- controls ----------------
+  document.querySelectorAll('#filters .segmented button').forEach(b => {
+    b.setAttribute('aria-pressed', String(+b.dataset.days === state.days));
+    b.addEventListener('click', () => { state.days = +b.dataset.days; document.querySelectorAll('#filters .segmented button').forEach(x => x.setAttribute('aria-pressed', String(x === b))); saveState(); load(); });
+  });
+  const fPump = $('fPump'), fVol = $('fVol'), fSingle = $('fSingle');
+  fPump.value = state.min_pump; fVol.value = state.min_volx; fSingle.checked = state.single;
+  const syncOut = () => { $('fPumpV').textContent = fPump.value + '%'; $('fVolV').textContent = fVol.value + '×'; };
+  syncOut();
+  let t;
+  const onFilter = () => { syncOut(); clearTimeout(t); t = setTimeout(() => { state.min_pump = +fPump.value; state.min_volx = +fVol.value; state.single = fSingle.checked; saveState(); load(); }, 300); };
+  fPump.addEventListener('input', onFilter); fVol.addEventListener('input', onFilter); fSingle.addEventListener('change', onFilter);
+  $('rvSymbol').addEventListener('change', async (e) => { state.rvSymbol = e.target.value; saveState(); cache.vol = await getJSON('/api/volatility?days=3&symbol=' + encodeURIComponent(state.rvSymbol)); renderVol(cache.vol); });
+  $('refreshBtn').addEventListener('click', load);
+  let rt; window.addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(renderAll, 150); });
+  const links = [...document.querySelectorAll('.side-link[data-sec]')];
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      entries.forEach(en => { if (en.isIntersecting) links.forEach(l => l.classList.toggle('active', l.dataset.sec === en.target.id)); });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    links.forEach(l => { const sec = document.getElementById(l.dataset.sec); if (sec) io.observe(sec); });
+  }
+  load();
+  setInterval(load, 120000);
+})();
+</script>
+</body>
+</html>
