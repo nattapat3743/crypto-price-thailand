@@ -16,6 +16,10 @@ Stage 3: ML — พยากรณ์ + ตรวจจับ บนข้อม
                           + จำลองเทรดตามโมเดลแล้วหักค่าธรรมเนียม เพื่อดูว่า "ทายถูกบ่อย" = "ได้กำไร" หรือไม่
 5) anomaly_scoring      : Isolation Forest ให้คะแนนความผิดปกติ (0-1) กับทุกเหตุการณ์ใน gold_events
 
+แยกอีก DAG: bitkub_forecast_publish_dag — รันทุกครั้งที่ bk_02 โหลด gold เสร็จ (ทุกชั่วโมง)
+ใช้โมเดล volume/ความผันผวนที่ deploy อยู่ ออกค่าพยากรณ์ 6 ชม. ข้างหน้าใหม่ ไม่เทรนใหม่
+(ถ้าออกเฉพาะตอนเทรนทุก 6 ชม. ค่าพยากรณ์จะค่อยๆ กลายเป็นอดีต จนก่อนรอบถัดไปเหลือให้ดูแค่ 1 ชม.)
+
 หลักการเดียวกับโปรเจกต์เดิม:
 - แบ่ง train/test ตามเวลา (ห้ามสุ่ม ไม่งั้นโมเดลแอบเห็นอนาคต)
 - champion-challenger: deploy เฉพาะเมื่อ "ชนะ baseline" และ "ดีกว่าโมเดลที่ deploy อยู่"
@@ -31,11 +35,12 @@ import numpy as np
 import pandas as pd
 import pyarrow as pa
 from airflow import DAG
+from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
 
-from bitkub_lake import BANGKOK_OFFSET_H, ML, SILVER_FEATURES, duckdb_conn, lake_glob_exists
+from bitkub_lake import BANGKOK_OFFSET_H, GOLD_DATASET_URI, ML, SILVER_FEATURES, duckdb_conn, lake_glob_exists
 
 POSTGRES_CONN_ID = "postgres_target"
 MODEL_ROOT = os.environ.get("MODEL_ROOT", "/opt/airflow/models")
@@ -43,6 +48,7 @@ TEST_FRACTION = 0.2
 HORIZON_H = 6
 TOP_VOL_SYMBOLS = 10
 EARLY_CHG, EARLY_VOLX, TARGET_PUMP = 0.03, 3.0, 0.10
+BAND_Q = (0.10, 0.90)          # ช่วงความคลาดเคลื่อน 80% รอบค่าพยากรณ์
 
 CREATE_TABLES_SQL = """
 CREATE TABLE IF NOT EXISTS model_metrics (
@@ -68,6 +74,9 @@ CREATE TABLE IF NOT EXISTS forecast_backtest (
 CREATE TABLE IF NOT EXISTS forecast_history (
     model_name TEXT, symbol TEXT, target_hour_utc TIMESTAMP, predicted FLOAT, generated_at TIMESTAMP
 );
+-- ขอบล่าง/บนของช่วงความคลาดเคลื่อน 80% (เพิ่มทีหลัง จึงใช้ ALTER ให้ตารางเดิมได้คอลัมน์ด้วย)
+ALTER TABLE forecasts ADD COLUMN IF NOT EXISTS lower FLOAT, ADD COLUMN IF NOT EXISTS upper FLOAT;
+ALTER TABLE forecast_history ADD COLUMN IF NOT EXISTS lower FLOAT, ADD COLUMN IF NOT EXISTS upper FLOAT;
 CREATE TABLE IF NOT EXISTS early_warnings (
     symbol TEXT, ts TIMESTAMP, probability FLOAT,
     chg_5m_pct FLOAT, vol_x_5m FLOAT, outcome TEXT, generated_at TIMESTAMP
@@ -89,9 +98,14 @@ def _save_dataset(df, model_name, run_id):
     return path
 
 
+def _split_cut(times):
+    """เส้นแบ่ง train/test: เวลาที่ตำแหน่ง 80% ของข้อมูล (เรียงตามเวลา)"""
+    times = np.sort(np.asarray(times))
+    return pd.Timestamp(times[int(len(times) * (1 - TEST_FRACTION))])
+
+
 def _time_split(df, time_col):
-    df = df.sort_values(time_col).reset_index(drop=True)
-    cut = df[time_col].iloc[int(len(df) * (1 - TEST_FRACTION))]
+    cut = _split_cut(df[time_col])
     return df[df[time_col] < cut], df[df[time_col] >= cut]
 
 
@@ -148,6 +162,41 @@ def _complete_hours(df, col="hour_utc"):
     return df[df[col] < current]
 
 
+# ----------------------------------------------------------------- ช่วงความคลาดเคลื่อน
+def _test_origins(index, cut):
+    """จุดเริ่มทาย (ชั่วโมงล่าสุดที่รู้ค่า) ในช่วงทดสอบ ที่มีค่าจริงครบ HORIZON_H ชม. ถัดไปให้เทียบ"""
+    pos = np.arange(len(index))
+    return pos[(index >= cut - pd.Timedelta(hours=1)) & (pos >= 24) & (pos + HORIZON_H < len(index))]
+
+
+def _multi_step(y, origins, make_X, predict):
+    """ทายต่อกัน HORIZON_H ชม. จากทุกจุดเริ่มพร้อมกัน วิธีเดียวกับตอนเผยแพร่จริง
+    (ชั่วโมงที่ยังไม่ถึงใช้ค่าที่ทายไว้แทนค่าจริง) คืน array (จุดเริ่ม, HORIZON_H) หน่วย log"""
+    paths = np.full((len(origins), HORIZON_H), np.nan)
+
+    def val(off):                                                  # ค่า ณ จุดเริ่ม + off ชม.
+        return y[origins + off] if off <= 0 else paths[:, off - 1]
+
+    for h in range(1, HORIZON_H + 1):
+        paths[:, h - 1] = predict(make_X(val, h))
+    return paths
+
+
+def _band(y, origins, paths):
+    """ควอนไทล์ของ (ค่าจริง − ค่าทาย) หน่วย log แยกตามจำนวนชั่วโมงข้างหน้า
+    ทายไกลขึ้น ความคลาดเคลื่อนสะสม แถบจึงกว้างขึ้นตาม — คืน None ถ้าตัวอย่างไม่พอ"""
+    actual = np.stack([y[origins + h] for h in range(1, HORIZON_H + 1)], axis=1)
+    err = actual - paths
+    if np.isfinite(err).sum(axis=0).min() < 50:
+        return None
+    return [tuple(np.nanquantile(err[:, h], BAND_Q)) for h in range(HORIZON_H)]
+
+
+def _time_feats(times):
+    hs, hc, dw = _hour_feats(pd.DatetimeIndex(times))
+    return dict(hour_sin=np.asarray(hs), hour_cos=np.asarray(hc), dow=np.asarray(dw))
+
+
 # ----------------------------------------------------------------- 1) volume forecast
 VOL_FEATS = ["lag1", "lag2", "lag3", "lag24", "roll24", "hour_sin", "hour_cos", "dow"]
 
@@ -162,16 +211,23 @@ def _volume_frame(hourly):
     return out
 
 
-def volume_forecast(**kwargs):
-    from sklearn.ensemble import HistGradientBoostingRegressor
-
+def _load_volume_hourly():
     rows = _hook().get_records("SELECT hour_utc, vol_thb FROM gold_market_hourly ORDER BY hour_utc")
     hourly = _complete_hours(pd.DataFrame(rows, columns=["hour_utc", "vol_thb"]).assign(
         hour_utc=lambda d: pd.to_datetime(d["hour_utc"])))
     if len(hourly) < 24 * 14:
         print(f"ข้อมูลรายชั่วโมงมี {len(hourly)} ชม. — ต้องการอย่างน้อย 14 วัน ข้ามรอบนี้")
-        return
+        return None
     hourly["y"] = np.log1p(hourly["vol_thb"].astype(float))     # log เพราะ volume กระจายตัวกว้างมาก
+    return hourly
+
+
+def volume_forecast(**kwargs):
+    from sklearn.ensemble import HistGradientBoostingRegressor
+
+    hourly = _load_volume_hourly()
+    if hourly is None:
+        return
     frame = _volume_frame(hourly).dropna()
     _save_dataset(frame, "volume_forecast", kwargs["run_id"])
     train, test = _time_split(frame, "hour_utc")
@@ -187,11 +243,24 @@ def volume_forecast(**kwargs):
     _decide_and_log("volume_forecast", "MAPE", mape, base, False, model, len(train), len(test),
                     {"unit": "% คลาดเคลื่อนเฉลี่ย", "baseline": "ค่าชั่วโมงเดียวกันเมื่อวาน"})
 
-    # ---- publish: พยากรณ์ 6 ชม. ข้างหน้าแบบ recursive ด้วยโมเดลที่ deploy อยู่
+    _publish_volume(hourly, test["hour_utc"].min())
+
+
+def publish_volume(**kwargs):
+    """รายชั่วโมง: ออกค่าพยากรณ์ใหม่ด้วยโมเดลที่ deploy อยู่ (ไม่เทรนใหม่)"""
+    hourly = _load_volume_hourly()
+    if hourly is not None:
+        _publish_volume(hourly, _split_cut(_volume_frame(hourly).dropna()["hour_utc"]))
+
+
+def _publish_volume(hourly, cut):
+    """พยากรณ์ 6 ชม. ข้างหน้าแบบ recursive ด้วยโมเดลที่ deploy อยู่ + ช่วงคลาดเคลื่อนจากช่วงทดสอบ (หลัง cut)"""
     deployed = _load_model("volume_forecast")
     if deployed is None:
+        print("[volume_forecast] ยังไม่มีโมเดลที่ deploy — ข้าม")
         return
     series = hourly.set_index("hour_utc")["y"].asfreq("h")
+    band = _volume_band(deployed, series, cut)
     generated = datetime.utcnow()
     out = []
     for step in range(1, HORIZON_H + 1):
@@ -203,8 +272,35 @@ def volume_forecast(**kwargs):
         feat.update(hour_sin=hs, hour_cos=hc, dow=dw)
         y = float(deployed.predict(pd.DataFrame([feat])[VOL_FEATS])[0])
         series.loc[target] = y
-        out.append(("volume_forecast", "MARKET", target.to_pydatetime(), float(np.expm1(y)), generated))
+        out.append(("volume_forecast", "MARKET", target.to_pydatetime(), float(np.expm1(y)), generated,
+                    *_band_bounds(y, band, step)))
     _replace_forecasts("volume_forecast", out)
+
+
+def _volume_band(model, series, cut):
+    """ช่วงคลาดเคลื่อนของโมเดลที่ deploy อยู่ จากการทายต่อกัน 6 ชม. บนช่วงทดสอบ"""
+    y, times = series.values, series.index.values
+    origins = _test_origins(series.index, cut)
+
+    def make_X(val, h):
+        feat = {f"lag{k}": val(h - k) for k in (1, 2, 3, 24)}
+        feat["roll24"] = np.nanmean(np.stack([val(h - j) for j in range(1, 25)]), axis=0)
+        feat.update(_time_feats(times[origins + h]))
+        return pd.DataFrame(feat)[VOL_FEATS]
+
+    band = _band(y, origins, _multi_step(y, origins, make_X, model.predict))
+    if band:
+        print("[volume_forecast] ช่วง 80% (×ค่าทาย) รายชั่วโมงข้างหน้า: "
+              + ", ".join(f"+{h + 1}h {math.exp(lo):.2f}–{math.exp(hi):.2f}" for h, (lo, hi) in enumerate(band)))
+    return band
+
+
+def _band_bounds(y_log, band, step):
+    """ขอบล่าง/บนในหน่วยจริง จากค่าทาย (log1p) + ควอนไทล์ความคลาดเคลื่อนของชั่วโมงที่ step"""
+    if not band:
+        return None, None
+    lo, hi = band[step - 1]
+    return max(0.0, float(np.expm1(y_log + lo))), float(np.expm1(y_log + hi))
 
 
 def _save_backtest(model_name, run_id, hours, symbols, actual, pred, baseline):
@@ -225,10 +321,10 @@ def _replace_forecasts(model_name, rows):
     conn = _hook().get_conn()
     with conn.cursor() as cur:
         cur.execute("DELETE FROM forecasts WHERE model_name = %s", (model_name,))
-        cur.executemany("INSERT INTO forecasts (model_name, symbol, target_hour_utc, predicted, generated_at) "
-                        "VALUES (%s, %s, %s, %s, %s)", rows)
-        cur.executemany("INSERT INTO forecast_history (model_name, symbol, target_hour_utc, predicted, generated_at) "
-                        "VALUES (%s, %s, %s, %s, %s)", rows)
+        cur.executemany("INSERT INTO forecasts (model_name, symbol, target_hour_utc, predicted, generated_at, lower, upper) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s)", rows)
+        cur.executemany("INSERT INTO forecast_history (model_name, symbol, target_hour_utc, predicted, generated_at, lower, upper) "
+                        "VALUES (%s, %s, %s, %s, %s, %s, %s)", rows)
     conn.commit()
     conn.close()
     print(f"[{model_name}] เผยแพร่ค่าพยากรณ์ {len(rows)} แถว")
@@ -254,16 +350,15 @@ def _rv_frame(df):
     return out
 
 
-def volatility_forecast(**kwargs):
-    from sklearn.ensemble import HistGradientBoostingRegressor
-
+def _load_rv():
+    """ความผันผวน + volume รายชั่วโมงของ 10 เหรียญ volume สูงสุด คืน (รายชื่อเหรียญ, DataFrame) หรือ (None, None)"""
     hook = _hook()
     top = [r[0] for r in hook.get_records(
         "SELECT symbol FROM gold_coin_stats ORDER BY avg_daily_vol_thb_30d DESC NULLS LAST LIMIT %s",
         parameters=(TOP_VOL_SYMBOLS,))]
     if not top:
         print("ยังไม่มี gold_coin_stats — ข้าม")
-        return
+        return None, None
     rows = hook.get_records(
         "SELECT symbol, hour_utc, rv_pct, vol_thb FROM gold_symbol_hourly WHERE symbol = ANY(%s) ORDER BY hour_utc",
         parameters=(top,))
@@ -271,9 +366,18 @@ def volatility_forecast(**kwargs):
         hour_utc=lambda d: pd.to_datetime(d["hour_utc"])))
     if df["hour_utc"].nunique() < 24 * 14:
         print("ข้อมูลน้อยกว่า 14 วัน — ข้ามรอบนี้")
-        return
+        return None, None
     df["y"] = np.log1p(df["rv_pct"].astype(float))
     df["lv"] = np.log1p(df["vol_thb"].astype(float))
+    return top, df
+
+
+def volatility_forecast(**kwargs):
+    from sklearn.ensemble import HistGradientBoostingRegressor
+
+    top, df = _load_rv()
+    if df is None:
+        return
     frame = _rv_frame(df).dropna()
     train, test = _time_split(frame, "hour_utc")
     sym_mean = train.groupby("symbol")["y"].mean()                 # target encoding จาก train เท่านั้น
@@ -293,8 +397,20 @@ def volatility_forecast(**kwargs):
                     len(train), len(test), {"unit": "จุด % ของความผันผวนรายชั่วโมง", "baseline": "เท่าชั่วโมงก่อนหน้า",
                                             "symbols": top})
 
+    _publish_volatility(top, df, test["hour_utc"].min())
+
+
+def publish_volatility(**kwargs):
+    """รายชั่วโมง: ออกค่าพยากรณ์ใหม่ด้วยโมเดลที่ deploy อยู่ (ไม่เทรนใหม่)"""
+    top, df = _load_rv()
+    if df is not None:
+        _publish_volatility(top, df, _split_cut(_rv_frame(df).dropna()["hour_utc"]))
+
+
+def _publish_volatility(top, df, cut):
     bundle = _load_model("volatility_forecast")
     if bundle is None:
+        print("[volatility_forecast] ยังไม่มีโมเดลที่ deploy — ข้าม")
         return
     generated, out = datetime.utcnow(), []
     for sym in top:
@@ -304,7 +420,8 @@ def volatility_forecast(**kwargs):
         s = g.set_index("hour_utc")["y"].asfreq("h", fill_value=0.0)
         v = g.set_index("hour_utc")["lv"].asfreq("h", fill_value=0.0)
         smean = bundle["sym_mean"].get(sym, float(bundle["sym_mean"].mean()))
-        for _ in range(HORIZON_H):
+        band = _rv_band(bundle["model"], s, v, smean, cut)          # แยกรายเหรียญ: เหรียญ meme แกว่งกว่า BTC มาก
+        for step in range(1, HORIZON_H + 1):
             target = s.index[-1] + pd.Timedelta(hours=1)
             feat = {f"lag{k}": s.iloc[-k] for k in (1, 2, 3, 24)}
             feat.update(roll24=s.iloc[-24:].mean(), vol_lag1=v.iloc[-1], sym_mean=smean)
@@ -313,8 +430,25 @@ def volatility_forecast(**kwargs):
             y = float(bundle["model"].predict(pd.DataFrame([feat])[RV_FEATS])[0])
             s.loc[target] = y
             v.loc[target] = v.iloc[-24]                            # สมมติ volume เท่าเวลาเดียวกันเมื่อวาน
-            out.append(("volatility_forecast", sym, target.to_pydatetime(), float(np.expm1(y)), generated))
+            out.append(("volatility_forecast", sym, target.to_pydatetime(), float(np.expm1(y)), generated,
+                        *_band_bounds(y, band, step)))
     _replace_forecasts("volatility_forecast", out)
+
+
+def _rv_band(model, s, v, smean, cut):
+    """ช่วงคลาดเคลื่อนของเหรียญหนึ่ง จากการทายต่อกัน 6 ชม. บนช่วงทดสอบ (สมมติ volume แบบเดียวกับตอนเผยแพร่)"""
+    y, lv, times = s.values, v.values, s.index.values
+    origins = _test_origins(s.index, cut)
+
+    def make_X(val, h):
+        feat = {f"lag{k}": val(h - k) for k in (1, 2, 3, 24)}
+        feat["roll24"] = np.mean(np.stack([val(h - j) for j in range(1, 25)]), axis=0)
+        feat["vol_lag1"] = lv[origins + h - 1] if h == 1 else lv[origins + h - 1 - 24]
+        feat["sym_mean"] = smean
+        feat.update(_time_feats(times[origins + h]))
+        return pd.DataFrame(feat)[RV_FEATS]
+
+    return _band(y, origins, _multi_step(y, origins, make_X, model.predict))
 
 
 # ----------------------------------------------------------------- 3) early warning
@@ -519,3 +653,19 @@ with DAG(
                               trigger_rule="all_done")
         previous >> task
         previous = task
+
+
+with DAG(
+    dag_id="bitkub_forecast_publish_dag",
+    description="ออกค่าพยากรณ์ 6 ชม. ข้างหน้าใหม่ทุกครั้งที่ gold อัปเดต ด้วยโมเดลที่ deploy อยู่ (ไม่เทรนใหม่)",
+    default_args={"owner": "bigdata", "retries": 1, "retry_delay": timedelta(minutes=2)},
+    schedule=[Dataset(GOLD_DATASET_URI)],
+    start_date=datetime(2026, 9, 1),
+    catchup=False,
+    max_active_runs=1,
+    is_paused_upon_creation=False,          # ยังไม่มีโมเดลก็แค่ข้าม จึงเปิดไว้ได้เลย
+    tags=["bitkub", "stage-3", "forecast"],
+) as publish_dag:
+    publish_tables = PostgresOperator(task_id="create_tables", postgres_conn_id=POSTGRES_CONN_ID, sql=CREATE_TABLES_SQL)
+    for name, fn in [("publish_volume", publish_volume), ("publish_volatility", publish_volatility)]:
+        publish_tables >> PythonOperator(task_id=name, python_callable=fn, execution_timeout=timedelta(minutes=10))

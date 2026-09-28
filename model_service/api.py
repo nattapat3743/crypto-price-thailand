@@ -182,7 +182,7 @@ def market(days: int = Query(7, ge=1, le=365)):
         SELECT hour_utc, vol_thb, avg_rv_pct, symbols FROM gold_market_hourly
         WHERE hour_utc >= (SELECT max(hour_utc) FROM gold_market_hourly) - %s * INTERVAL '1 day'
         ORDER BY hour_utc""", (days,))
-    fc = _query("""SELECT target_hour_utc, predicted, generated_at FROM forecasts
+    fc = _query("""SELECT target_hour_utc, predicted, lower, upper, generated_at FROM forecasts
                    WHERE model_name = 'volume_forecast' ORDER BY target_hour_utc""")
     return {"actual": _clean(rows), "forecast": _clean(fc)}
 
@@ -201,7 +201,7 @@ def volatility(symbol: str = Query(None), days: int = Query(3, ge=1, le=60)):
         SELECT hour_utc, rv_pct, vol_thb FROM gold_symbol_hourly WHERE symbol = %s
           AND hour_utc >= (SELECT max(hour_utc) FROM gold_symbol_hourly WHERE symbol = %s) - %s * INTERVAL '1 day'
         ORDER BY hour_utc""", (symbol, symbol, days))
-    fc = _query("""SELECT target_hour_utc, predicted FROM forecasts
+    fc = _query("""SELECT target_hour_utc, predicted, lower, upper FROM forecasts
                    WHERE model_name = 'volatility_forecast' AND symbol = %s ORDER BY target_hour_utc""", (symbol,))
     return {"symbols": symbols, "symbol": symbol, "actual": _clean(rows), "forecast": _clean(fc)}
 

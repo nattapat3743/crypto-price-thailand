@@ -29,6 +29,7 @@ import time
 from datetime import datetime, timedelta
 
 from airflow import DAG
+from airflow.datasets import Dataset
 from airflow.operators.python import PythonOperator
 from airflow.providers.postgres.hooks.postgres import PostgresHook
 from airflow.providers.postgres.operators.postgres import PostgresOperator
@@ -41,6 +42,7 @@ from bitkub_lake import (
     DUMP_WINDOW_MIN,
     EVENT_GAP_MIN,
     GOLD,
+    GOLD_DATASET_URI,
     SILVER_FEATURES,
     duckdb_conn,
     lake_glob_exists,
@@ -324,5 +326,6 @@ with DAG(
     silver = PythonOperator(task_id="build_silver", python_callable=build_silver,
                             execution_timeout=timedelta(minutes=40))
     gold = PythonOperator(task_id="build_gold", python_callable=build_gold,
-                          execution_timeout=timedelta(minutes=30))
+                          execution_timeout=timedelta(minutes=30),
+                          outlets=[Dataset(GOLD_DATASET_URI)])      # เสร็จแล้วปลุก bitkub_forecast_publish_dag
     create_tables >> silver >> gold

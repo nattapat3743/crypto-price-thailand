@@ -95,6 +95,8 @@ BRONZE_TICKER = f"{LAKE}/bronze/ticker"
 SILVER_FEATURES = f"{LAKE}/silver/features"
 GOLD = f"{LAKE}/gold"
 ML = f"{LAKE}/ml"
+# Airflow Dataset: bk_02 ประกาศเมื่อโหลด gold เข้า Postgres เสร็จ -> bk_03 (publish) รันต่อทันที
+GOLD_DATASET_URI = "postgres://postgres_target/etl_db/gold"
 
 DUCKDB_MEMORY_LIMIT = os.environ.get("DUCKDB_MEMORY_LIMIT", "1GB")
 DUCKDB_THREADS = int(os.environ.get("DUCKDB_THREADS", "2"))
